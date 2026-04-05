@@ -1,0 +1,16 @@
+{
+  "name": "x-thread",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node start-simple.js",
+    "dev:frontend": "pnpm --filter x-thread-frontend dev",
+    "dev:backend": "pnpm --filter x-thread-backend dev",
+    "build:frontend": "pnpm --filter x-thread-frontend build",
+    "build:backend": "pnpm --filter x-thread-backend build",
+    "install:all": "pnpm install"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

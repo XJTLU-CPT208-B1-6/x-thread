@@ -1,0 +1,29 @@
+{
+  "version": 2,
+  "folders": [
+    {
+      "id": "4bc02643-2cc6-4bfd-bc18-7d9c9dbf50f2",
+      "roomId": "cmnhc02nj0002x7vrqi5tkjj4",
+      "name": "要求",
+      "parentId": null,
+      "createdAt": "2026-04-02T10:28:28.591Z",
+      "updatedAt": "2026-04-02T10:28:28.591Z",
+      "creatorId": "cmnhc02mo0000x7vr5huwu0oa",
+      "creatorNickname": "夏"
+    }
+  ],
+  "files": [
+    {
+      "id": "feb92bd9-6372-4cee-b725-4ba51154bd6f",
+      "roomId": "cmnhc02nj0002x7vrqi5tkjj4",
+      "folderId": "4bc02643-2cc6-4bfd-bc18-7d9c9dbf50f2",
+      "filename": "Arduino and sensors basics quiz (1).pdf",
+      "storedName": "feb92bd9-6372-4cee-b725-4ba51154bd6f-Arduino and sensors basics quiz (1).pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 459437,
+      "uploadedAt": "2026-04-02T10:28:43.245Z",
+      "uploaderId": "cmnhc02mo0000x7vr5huwu0oa",
+      "uploaderNickname": "夏"
+    }
+  ]
+}

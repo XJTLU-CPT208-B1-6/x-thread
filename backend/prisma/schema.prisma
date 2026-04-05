@@ -1,0 +1,224 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  username     String?        @unique
+  email        String?        @unique
+  nickname     String
+  avatar       String?
+  passwordHash String?
+  isGuest      Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  ownedRooms   Room[]         @relation("RoomOwner")
+  memberships  RoomMember[]
+  nodes        MindMapNode[]
+  messages     ChatMessage[]
+  inputEvents  InputEvent[]
+  aiSettings   UserAiSettings?
+}
+
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  purpose   String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  sentAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose, expiresAt])
+}
+
+model UserAiSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        String   @default("deepseek")
+  apiKeyEncrypted String?
+  baseUrl         String?
+  model           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+enum RoomMode {
+  ONSITE
+  REMOTE
+}
+
+enum RoomPhase {
+  LOBBY
+  ICEBREAK
+  DISCUSS
+  REVIEW
+  CLOSED
+}
+
+model Room {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  topic      String
+  mode       RoomMode     @default(ONSITE)
+  phase      RoomPhase    @default(LOBBY)
+  ownerId    String
+  owner      User         @relation("RoomOwner", fields: [ownerId], references: [id])
+  maxMembers Int          @default(8)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  members    RoomMember[]
+  agenda     AgendaItem[]
+  nodes      MindMapNode[]
+  edges      MindMapEdge[]
+  messages   ChatMessage[]
+  pet        Pet?
+  inputs     InputEvent[]
+}
+
+enum RoomMemberRole {
+  OWNER
+  MEMBER
+  OBSERVER
+}
+
+enum MemberPresenceStatus {
+  ACTIVE
+  DISCONNECTED
+  LEFT
+}
+
+model RoomMember {
+  id          String               @id @default(cuid())
+  roomId      String
+  room        Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                 @relation(fields: [userId], references: [id])
+  role        RoomMemberRole       @default(MEMBER)
+  status      MemberPresenceStatus @default(ACTIVE)
+  joinedAt    DateTime             @default(now())
+  lastSeenAt  DateTime             @default(now())
+  leftAt      DateTime?
+
+  @@unique([roomId, userId])
+}
+
+model AgendaItem {
+  id          String  @id @default(cuid())
+  roomId      String
+  room        Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  content     String
+  order       Int
+  durationMin Int     @default(5)
+  done        Boolean @default(false)
+}
+
+enum NodeType {
+  IDEA
+  QUESTION
+  FACT
+  ACTION
+}
+
+model MindMapNode {
+  id        String      @id @default(cuid())
+  roomId    String
+  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User        @relation(fields: [authorId], references: [id])
+  label     String
+  type      NodeType    @default(IDEA)
+  posX      Float       @default(0)
+  posY      Float       @default(0)
+  createdAt DateTime    @default(now())
+
+  sourceEdges MindMapEdge[] @relation("EdgeSource")
+  targetEdges MindMapEdge[] @relation("EdgeTarget")
+}
+
+model MindMapEdge {
+  id       String      @id @default(cuid())
+  roomId   String
+  room     Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sourceId String
+  source   MindMapNode @relation("EdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId String
+  target   MindMapNode @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  label    String?
+  createdAt DateTime   @default(now())
+}
+
+enum MessageType {
+  TEXT
+  VOICE_TRANSCRIPT
+  SYSTEM
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  roomId    String
+  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?       @relation(fields: [authorId], references: [id])
+  content   String
+  type      MessageType @default(TEXT)
+  createdAt DateTime    @default(now())
+}
+
+enum PetMood {
+  HAPPY
+  NEUTRAL
+  SLEEPY
+  EXCITED
+}
+
+model Pet {
+  id        String   @id @default(cuid())
+  roomId    String   @unique
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  name      String   @default("Buddy")
+  mood      PetMood  @default(NEUTRAL)
+  energy    Int      @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum InputEventKind {
+  TEXT
+  VOICE_TRANSCRIPT
+  FILE_CONTEXT
+  AMBIENT_SLICE
+}
+
+enum InputEventStatus {
+  ACCEPTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model InputEvent {
+  id           String           @id @default(cuid())
+  roomId        String
+  room          Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId      String?
+  author        User?            @relation(fields: [authorId], references: [id])
+  kind          InputEventKind   @default(TEXT)
+  content       String
+  source        String?
+  metadata      Json?
+  status        InputEventStatus @default(ACCEPTED)
+  errorMessage  String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  processedAt   DateTime?
+}

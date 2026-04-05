@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /e/XJTLU/大三/CPT208/cw/x-thread-1/x-thread/frontend/src -type f -name \"*.tsx\" -o -name \"*.ts\" | xargs grep -l \"submitPtt\" 2>/dev/null)",
+      "Bash(find /e/XJTLU/大三/CPT208/cw/x-thread-1/x-thread/frontend/src -type f -name \"*.tsx\" -o -name \"*.ts\" | xargs grep -l \"roomCode\" 2>/dev/null)",
+      "Bash(find \"/e/XJTLU/大三/CPT208/cw/x-thread-1/x-thread/frontend/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"send-message\\\\|socket\\\\|io\\(\\)\" 2>/dev/null | head -15)",
+      "Bash(find \"/e/XJTLU/大三/CPT208/cw/x-thread-1/x-thread/frontend/src/stores\" -name \"*.ts\" | xargs ls -la)",
+      "Bash(find /e/XJTLU/大三/CPT208/cw/x-thread-1/x-thread/backend/src -name \"*controller*\" -type f | xargs grep -l \"message\\\\|chat\" 2>/dev/null)",
+      "Bash(docker --version 2>/dev/null && docker compose version 2>/dev/null)",
+      "Bash(pnpm dev:*)",
+      "Bash(cd backend:*)",
+      "Bash(npx prisma:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(ls -lah *.png *.jpg *.jpeg 2>/dev/null || echo \"No image files found\")",
+      "Bash(curl -s http://localhost:3001/api 2>/dev/null | head -20 || echo \"Backend not responding\")",
+      "Bash(cd .. && docker-compose ps)",
+      "Bash(docker compose:*)",
+      "Bash(curl -s http://localhost:5173 2>&1 | head -5)",
+      "mcp__ace-tool__search_context",
+      "mcp__fast-context__fast_context_search",
+      "mcp__contextweaver__codebase-retrieval",
+      "Bash(command -v opencode && opencode --help)",
+      "Bash(opencode run:*)",
+      "Bash(opencode providers:*)",
+      "Bash(opencode session:*)",
+      "Bash(opencode export:*)"
+    ]
+  }
+}
