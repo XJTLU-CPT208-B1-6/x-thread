@@ -68,6 +68,8 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   emitRoomDissolved(roomId: string, payload: unknown) {
     this.server.to(`room:${roomId}`).emit('room-dissolved', payload);
+    // Broadcast to the global lobby channel so the lobby page updates instantly
+    this.server.emit('lobby-room-removed', { roomId });
   }
 
   @SubscribeMessage('join-room')

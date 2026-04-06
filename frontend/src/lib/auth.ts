@@ -11,6 +11,7 @@ export type AccountProfile = {
   xjtluEmail?: string | null;
   avatar?: string | null;
   isGuest: boolean;
+  isAdmin?: boolean;
 };
 
 type TokenPayload = {
@@ -61,6 +62,7 @@ export const syncUserFromProfile = (profile: AccountProfile) => {
     xjtluEmail: profile.xjtluEmail ?? null,
     avatar: profile.avatar ?? null,
     isGuest: profile.isGuest,
+    isAdmin: profile.isAdmin ?? false,
   });
 };
 

@@ -9,6 +9,7 @@ export interface User {
   xjtluEmail?: string | null;
   avatar?: string | null;
   isGuest?: boolean;
+  isAdmin?: boolean;
 }
 
 interface UserStore {

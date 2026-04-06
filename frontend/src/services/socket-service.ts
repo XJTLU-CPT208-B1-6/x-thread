@@ -91,6 +91,13 @@ class SocketService {
       );
     });
 
+    // Global lobby event: a room was dissolved anywhere — remove it from lobby instantly
+    this.socket.on('lobby-room-removed', (payload: { roomId: string }) => {
+      window.dispatchEvent(
+        new CustomEvent('x-thread-lobby-room-removed', { detail: payload }),
+      );
+    });
+
     // Backend emits: phase-changed
     this.socket.on('phase-changed', ({ phase }: { phase: string }) => {
       const room = useRoomStore.getState().currentRoom;

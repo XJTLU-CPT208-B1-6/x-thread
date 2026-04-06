@@ -29,6 +29,7 @@ export class RoomsService {
       topic: string;
       mode?: RoomMode;
       maxMembers?: number;
+      tags?: string[];
     },
   ) {
     this.ensureRegisteredAccount(user);
@@ -58,6 +59,7 @@ export class RoomsService {
         mode: dto.mode ?? RoomMode.ONSITE,
         ownerId: user.userId,
         maxMembers: dto.maxMembers ?? 8,
+        tags: dto.tags ?? [],
         members: {
           create: {
             userId: user.userId,
@@ -90,6 +92,9 @@ export class RoomsService {
     if (!room) throw new NotFoundException('Room not found');
     if (room.phase === RoomPhase.CLOSED) {
       throw new BadRequestException('Room is closed');
+    }
+    if (room.isLocked) {
+      throw new BadRequestException('Room is locked');
     }
 
     const existingMembership = await this.prisma.roomMember.findUnique({
@@ -181,6 +186,34 @@ export class RoomsService {
     return serializeRoom(room);
   }
 
+  async updateRoom(
+    roomId: string,
+    userId: string,
+    dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean },
+  ) {
+    await this.ensureOwner(roomId, userId);
+
+    const data: Record<string, unknown> = {};
+    if (dto.topic !== undefined) {
+      const topic = dto.topic.trim();
+      if (!topic) throw new BadRequestException('Topic cannot be empty');
+      data.topic = topic;
+    }
+    if (dto.tags !== undefined) data.tags = dto.tags;
+    if (dto.maxMembers !== undefined) {
+      if (dto.maxMembers < 1 || dto.maxMembers > 50) throw new BadRequestException('maxMembers must be 1-50');
+      data.maxMembers = dto.maxMembers;
+    }
+    if (dto.isLocked !== undefined) data.isLocked = dto.isLocked;
+
+    const room = await this.prisma.room.update({
+      where: { id: roomId },
+      data,
+      include: this.getRoomInclude(),
+    });
+    return { room: serializeRoom(room) };
+  }
+
   async leaveRoom(userId: string, roomId: string) {
     const membership = await this.ensureMembership(roomId, userId);
     if (membership.role === RoomMemberRole.OWNER) {
@@ -264,6 +297,36 @@ export class RoomsService {
       },
     });
     return this.getRoom(roomId, userId);
+  }
+
+  async listLobbyRooms() {
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        phase: { not: RoomPhase.CLOSED },
+        // Exclude rooms with no active members (e.g. dissolved before phase was set)
+        members: {
+          some: {
+            status: { not: MemberPresenceStatus.LEFT },
+          },
+        },
+      },
+      include: this.getRoomInclude(),
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return rooms.map((r) => serializeRoom(r));
+  }
+
+  async toggleLock(roomId: string, userId: string) {
+    await this.ensureOwner(roomId, userId);
+    const room = await this.prisma.room.findUnique({ where: { id: roomId } });
+    if (!room) throw new NotFoundException('Room not found');
+    const updated = await this.prisma.room.update({
+      where: { id: roomId },
+      data: { isLocked: !room.isLocked },
+      include: this.getRoomInclude(),
+    });
+    return { room: serializeRoom(updated) };
   }
 
   async ensureMembership(roomId: string, userId: string) {

@@ -281,6 +281,7 @@ export class AccountService {
     xjtluEmail?: string | null;
     avatar?: string | null;
     isGuest: boolean;
+    isAdmin?: boolean;
   }) {
     return {
       id: user.id,
@@ -291,6 +292,7 @@ export class AccountService {
       xjtluEmail: user.xjtluEmail ?? null,
       avatar: user.avatar ?? null,
       isGuest: user.isGuest,
+      isAdmin: user.isAdmin ?? false,
     };
   }
 

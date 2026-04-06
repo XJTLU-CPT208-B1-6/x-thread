@@ -12,6 +12,7 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { PetModule } from './modules/pet/pet.module';
 import { SharedFilesModule } from './modules/shared-files/shared-files.module';
 import { WhiteboardModule } from './modules/whiteboard/whiteboard.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { WhiteboardModule } from './modules/whiteboard/whiteboard.module';
     PetModule,
     SharedFilesModule,
     WhiteboardModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

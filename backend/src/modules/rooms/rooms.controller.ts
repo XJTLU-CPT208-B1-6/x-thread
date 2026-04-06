@@ -24,6 +24,12 @@ export class RoomsController {
   ) {}
 
   @UseGuards(JwtAuthGuard)
+  @Get('lobby')
+  listLobby() {
+    return this.roomsService.listLobbyRooms();
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post()
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -32,6 +38,7 @@ export class RoomsController {
       topic: string;
       mode?: 'ONSITE' | 'REMOTE';
       maxMembers?: number;
+      tags?: string[];
     },
   ) {
     return this.roomsService.createRoomSession(user, dto);
@@ -97,6 +104,16 @@ export class RoomsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  updateRoom(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean },
+  ) {
+    return this.roomsService.updateRoom(id, user.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/leave')
   leave(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.roomsService.leaveRoom(user.userId, id);
@@ -108,6 +125,12 @@ export class RoomsController {
     const result = await this.roomsService.dissolveRoom(id, user.userId);
     this.roomGateway.emitRoomDissolved(id, result);
     return result;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/lock')
+  toggleLock(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.roomsService.toggleLock(id, user.userId);
   }
 
   @UseGuards(JwtAuthGuard)

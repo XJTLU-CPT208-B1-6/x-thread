@@ -246,7 +246,7 @@ export default function RoomHistoryPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/?section=recent-rooms')}
                 className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 返回首页

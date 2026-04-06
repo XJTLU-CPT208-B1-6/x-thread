@@ -202,8 +202,20 @@ export const accountService = {
 };
 
 export const roomService = {
-  createRoom: async (data: { topic: string; mode?: 'ONSITE' | 'REMOTE'; maxMembers?: number }) => {
+  createRoom: async (data: { topic: string; mode?: 'ONSITE' | 'REMOTE'; maxMembers?: number; tags?: string[] }) => {
     const response = await api.post('/rooms', data);
+    return response.data as { room: any };
+  },
+  listLobby: async () => {
+    const response = await api.get('/rooms/lobby');
+    return response.data as any[];
+  },
+  toggleLock: async (id: string) => {
+    const response = await api.post(`/rooms/${id}/lock`);
+    return response.data as { room: any };
+  },
+  updateRoom: async (id: string, dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean }) => {
+    const response = await api.patch(`/rooms/${id}`, dto);
     return response.data as { room: any };
   },
   joinRoom: async (code: string) => {
@@ -451,3 +463,18 @@ export const sharedFileService = {
 };
 
 export default api;
+
+export const adminService = {
+  listRooms: async () => {
+    const response = await api.get('/admin/rooms');
+    return response.data as any[];
+  },
+  forceDissolve: async (roomId: string) => {
+    const response = await api.post(`/admin/rooms/${roomId}/dissolve`);
+    return response.data as { ok: boolean; roomId: string; topic: string };
+  },
+  forceDelete: async (roomId: string) => {
+    const response = await api.delete(`/admin/rooms/${roomId}`);
+    return response.data as { ok: boolean; roomId: string; topic: string };
+  },
+};

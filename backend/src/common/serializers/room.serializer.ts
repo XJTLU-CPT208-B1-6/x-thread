@@ -5,6 +5,9 @@ type RoomWithRelations = {
   mode: string;
   phase: string;
   maxMembers: number;
+  isLocked?: boolean;
+  tags?: string[];
+  ownerId?: string;
   createdAt?: Date;
   updatedAt?: Date;
   members?: Array<{
@@ -38,6 +41,9 @@ export function serializeRoom(room: RoomWithRelations) {
     mode: room.mode,
     phase: room.phase,
     maxMembers: room.maxMembers,
+    isLocked: room.isLocked ?? false,
+    tags: room.tags ?? [],
+    ownerId: room.ownerId ?? null,
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
     members:

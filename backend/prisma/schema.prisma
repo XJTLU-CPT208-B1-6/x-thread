@@ -17,6 +17,7 @@ model User {
   avatar       String?
   passwordHash String?
   isGuest      Boolean        @default(true)
+  isAdmin      Boolean        @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -75,6 +76,8 @@ model Room {
   ownerId    String
   owner      User         @relation("RoomOwner", fields: [ownerId], references: [id])
   maxMembers Int          @default(8)
+  isLocked   Boolean      @default(false)
+  tags       String[]     @default([])
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 

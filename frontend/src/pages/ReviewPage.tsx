@@ -31,7 +31,7 @@ export default function ReviewPage() {
         </div>
 
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/?section=recent-rooms')}
           className="w-full rounded-xl bg-gray-800 py-3 font-medium text-white shadow-md transition-colors hover:bg-gray-900"
         >
           返回首页

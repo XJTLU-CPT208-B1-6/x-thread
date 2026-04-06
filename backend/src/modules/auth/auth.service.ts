@@ -114,6 +114,7 @@ export class AuthService {
     nickname: string;
     avatar?: string | null;
     isGuest: boolean;
+    isAdmin?: boolean;
   }) {
     const payload = {
       sub: user.id,
@@ -121,6 +122,7 @@ export class AuthService {
       email: user.email ?? null,
       nickname: user.nickname,
       isGuest: user.isGuest,
+      isAdmin: user.isAdmin ?? false,
     };
 
     return {
@@ -136,6 +138,7 @@ export class AuthService {
     nickname: string;
     avatar?: string | null;
     isGuest: boolean;
+    isAdmin?: boolean;
   }) {
     return {
       id: user.id,
@@ -144,6 +147,7 @@ export class AuthService {
       nickname: user.nickname,
       avatar: user.avatar ?? null,
       isGuest: user.isGuest,
+      isAdmin: user.isAdmin ?? false,
     };
   }
 

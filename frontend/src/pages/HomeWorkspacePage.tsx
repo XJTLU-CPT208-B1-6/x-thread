@@ -6,18 +6,17 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  BrainCircuit,
   Clock3,
   DoorOpen,
   FileText,
+  Gamepad2,
   Home,
   ImagePlus,
   Languages,
   LogOut,
   MessageSquare,
-  PenLine,
   PlusCircle,
   RefreshCw,
   Settings2,
@@ -27,6 +26,7 @@ import {
   Users,
 } from 'lucide-react';
 import { AccountAiSettingsPanel } from '../components/AccountAiSettingsPanel';
+import { GroupLobbyPanel } from '../components/GroupLobbyPanel';
 import {
   accountService,
   authService,
@@ -49,12 +49,10 @@ import { useUserStore } from '../stores/useUserStore';
 type DashboardSection =
   | 'home'
   | 'current-room'
+  | 'my-room'
   | 'join-room'
   | 'create-room'
-  | 'mindmap'
-  | 'ai-discussion'
-  | 'whiteboard'
-  | 'shared-files'
+  | 'group-lobby'
   | 'recent-rooms'
   | 'discussion-outputs'
   | 'profile'
@@ -176,15 +174,195 @@ const DashboardCard = ({
   </section>
 );
 
+// ── MyRoomEditor ────────────────────────────────────────────────────────────
+const VIBE_TAGS_EDITOR = ['认真学习 📚', '佛系摸鱼 🐟', '赶DDL 🔥', '头脑风暴 💡', '互相监督 👀', '随便聊聊 💬'];
+const COURSE_TAGS_EDITOR = ['高数', '英语', '编程', '物理', '经济', '设计'];
+
+function MyRoomEditor({
+  room,
+  onNavigate,
+  onRefresh,
+}: {
+  room: import('../services/api-client').AccountOverviewRoom;
+  onNavigate: (path: string) => void;
+  onRefresh: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    topic: room.topic,
+    maxMembers: room.maxMembers,
+    isLocked: false,
+    tags: [] as string[],
+  });
+  const [customTag, setCustomTag] = useState('');
+  const [saveError, setSaveError] = useState('');
+
+  // Fetch full room data (including tags/isLocked) when editing opens
+  const [fullRoom, setFullRoom] = useState<any>(null);
+  useEffect(() => {
+    if (!editing) return;
+    roomService.getRoomByCode(room.code).then((r: any) => {
+      setFullRoom(r);
+      setForm({ topic: r.topic, maxMembers: r.maxMembers, isLocked: r.isLocked ?? false, tags: r.tags ?? [] });
+    }).catch(() => {});
+  }, [editing, room.code]);
+
+  const toggleTag = (tag: string) =>
+    setForm((f) => ({
+      ...f,
+      tags: f.tags.includes(tag) ? f.tags.filter((t) => t !== tag) : [...f.tags, tag],
+    }));
+
+  const addCustomTag = () => {
+    const t = customTag.trim();
+    if (!t || form.tags.includes(t)) { setCustomTag(''); return; }
+    setForm((f) => ({ ...f, tags: [...f.tags, t] }));
+    setCustomTag('');
+  };
+
+  const handleSave = async () => {
+    if (!form.topic.trim()) { setSaveError('主题不能为空'); return; }
+    setSaving(true); setSaveError('');
+    try {
+      await roomService.updateRoom(fullRoom?.id ?? '', {
+        topic: form.topic.trim(),
+        maxMembers: form.maxMembers,
+        isLocked: form.isLocked,
+        tags: form.tags,
+      });
+      setEditing(false);
+      onRefresh();
+    } catch (e: any) {
+      setSaveError(e?.response?.data?.message ?? '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const phaseLabelMap: Record<string, string> = {
+    LOBBY: '准备中', ICEBREAK: '破冰', DISCUSS: '讨论中', REVIEW: '复盘', CLOSED: '已结束',
+  };
+
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
+      {/* Header row */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-purple-500 font-semibold">{room.code}</div>
+          <div className="mt-1 text-base font-bold text-blue-950">{room.topic}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-purple-50 px-3 py-1 text-xs font-semibold text-purple-700 border border-purple-100">
+            {phaseLabelMap[room.phase] ?? room.phase}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${
+              editing ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            {editing ? '取消' : '✏️ 编辑'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate(resolveRoomPathFromPhase(room.code, room.phase))}
+            className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
+          >
+            进入房间
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs text-blue-800/60 mb-3">
+        {room.memberCount}/{room.maxMembers} 人 · {room.mode === 'REMOTE' ? '远程' : '线下'}
+      </div>
+
+      {/* Edit form */}
+      {editing && (
+        <div className="border-t border-slate-100 pt-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">讨论主题</label>
+            <input value={form.topic} onChange={(e) => setForm((f) => ({ ...f, topic: e.target.value }))}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">人数上限</label>
+            <div className="flex gap-2">
+              {[2, 4, 6, 8, 10].map((n) => (
+                <button key={n} type="button" onClick={() => setForm((f) => ({ ...f, maxMembers: n }))}
+                  className={`flex-1 rounded-xl py-1.5 text-sm font-bold transition border ${
+                    form.maxMembers === n ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300'
+                  }`}>{n}</button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">锁定状态</label>
+            <button type="button" onClick={() => setForm((f) => ({ ...f, isLocked: !f.isLocked }))}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition border ${
+                form.isLocked ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+              }`}>
+              {form.isLocked ? '🔒 已锁定（点击解锁）' : '🟢 开放中（点击锁定）'}
+            </button>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">标签</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {[...VIBE_TAGS_EDITOR, ...COURSE_TAGS_EDITOR].map((tag) => (
+                <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition border ${
+                    form.tags.includes(tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                  }`}>{tag}</button>
+              ))}
+              {form.tags.filter((t) => !VIBE_TAGS_EDITOR.includes(t) && !COURSE_TAGS_EDITOR.includes(t)).map((tag) => (
+                <button key={tag} type="button" onClick={() => toggleTag(tag)}
+                  className="rounded-full px-2.5 py-1 text-xs font-semibold border bg-blue-600 text-white border-blue-600">
+                  {tag} ×
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input value={customTag} onChange={(e) => setCustomTag(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
+                placeholder="自定义标签，回车添加" maxLength={12}
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
+              <button type="button" onClick={addCustomTag} disabled={!customTag.trim()}
+                className="rounded-xl border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40">
+                + 添加
+              </button>
+            </div>
+          </div>
+
+          {saveError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{saveError}</div>
+          )}
+
+          <button type="button" onClick={() => void handleSave()} disabled={saving}
+            className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">
+            {saving ? '保存中...' : '保存修改'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function HomeWorkspacePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { setRoom, clearRoom } = useRoomStore();
   const { user } = useUserStore();
   const t = useT();
   const { language, setLanguage } = useLanguageStore();
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
-  const [activeSection, setActiveSection] = useState<DashboardSection>('home');
+  const initialSection = (searchParams.get('section') as DashboardSection | null) ?? 'home';
+  const [activeSection, setActiveSection] = useState<DashboardSection>(initialSection);
   const [accountForm, setAccountForm] = useState({ account: '', nickname: '', password: '' });
   const [roomForm, setRoomForm] = useState({
     topic: '',
@@ -661,6 +839,104 @@ export default function HomeWorkspacePage() {
     </DashboardCard>
   );
 
+  const renderRecentRooms = () => {
+    const allRooms = [
+      ...(overview?.activeRooms ?? []).map((r) => ({ ...r, isActive: true as const })),
+      ...(overview?.roomHistory ?? []).map((r) => ({ ...r, isActive: false as const })),
+    ];
+
+    return (
+      <DashboardCard
+        eyebrow="Recent Rooms"
+        title="最近的房间"
+        description="包含你正在参与的房间和 14 天内的历史记录。"
+        action={
+          <button
+            type="button"
+            onClick={() => void refreshAccountData()}
+            className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            刷新
+          </button>
+        }
+      >
+        <div className="space-y-3">
+          {overviewBusy ? (
+            <div className="rounded-2xl border border-dashed border-blue-200 px-4 py-6 text-center text-sm text-blue-500">
+              正在同步房间数据...
+            </div>
+          ) : allRooms.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-blue-200 px-4 py-6 text-center text-sm text-blue-500">
+              暂无房间记录。
+            </div>
+          ) : (
+            allRooms.map((room) => (
+              <div
+                key={`${room.roomId}:${room.isActive ? 'active' : (room.leftAt ?? room.joinedAt)}`}
+                className="rounded-3xl border border-blue-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className={`text-xs uppercase tracking-[0.18em] ${room.isActive ? 'text-purple-500' : 'text-blue-400'}`}>
+                      {room.code}
+                    </div>
+                    <div className="mt-2 text-lg font-bold text-blue-950">{room.topic}</div>
+                  </div>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold border ${
+                    room.isActive
+                      ? 'bg-purple-50 text-purple-700 border-purple-100'
+                      : 'bg-amber-50 text-amber-700 border-amber-100'
+                  }`}>
+                    {room.isActive
+                      ? (phaseLabelMap[room.phase] ?? room.phase)
+                      : (room.leftAt ? `离开于 ${formatTime(room.leftAt)}` : '历史记录')}
+                  </span>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-sm text-blue-800/70 sm:grid-cols-2">
+                  <div>角色：{room.role === 'OWNER' ? '房主' : '成员'}</div>
+                  <div>人数：{room.memberCount}/{room.maxMembers}</div>
+                  <div>最近在线：{formatTime(room.lastSeenAt)}</div>
+                  <div>模式：{room.mode === 'REMOTE' ? '远程' : '线下'}</div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {room.isActive ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(resolveRoomPath(room))}
+                      className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                    >
+                      继续进入
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/room/${room.code}/history`)}
+                        className="rounded-2xl border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+                      >
+                        查看历史
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleJoinRoom(room.code)}
+                        className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                      >
+                        重新加入
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </DashboardCard>
+    );
+  };
+
   const renderAiSettings = () => (
     <DashboardCard
       eyebrow="AI Settings"
@@ -756,7 +1032,7 @@ export default function HomeWorkspacePage() {
                     bg: 'bg-rose-50',
                     label: '从文件生成讨论',
                     sub: '上传 PDF/PPT 自动解析',
-                    action: () => setActiveSection('shared-files'),
+                    action: () => setActiveSection('create-room'),
                   },
                 ].map((item) => (
                   <button
@@ -1043,6 +1319,41 @@ export default function HomeWorkspacePage() {
     );
   };
 
+  const renderMyRooms = () => {
+    const myOwnedRooms = overview?.activeRooms.filter((r) => r.role === 'OWNER') ?? [];
+
+    return (
+      <DashboardCard
+        eyebrow="My Rooms"
+        title="我的房间"
+        description="你是房主的房间。可以在这里修改房间属性，只有房主才能修改。"
+        action={
+          <button type="button" onClick={() => void refreshAccountData()}
+            className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50">
+            <RefreshCw className="h-4 w-4" />刷新
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          {myOwnedRooms.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-blue-200 px-4 py-8 text-center text-sm text-blue-500">
+              你目前没有作为房主的活跃房间。
+            </div>
+          ) : (
+            myOwnedRooms.map((room) => (
+              <MyRoomEditor
+                key={room.roomId}
+                room={room}
+                onNavigate={(path) => navigate(path)}
+                onRefresh={() => void refreshAccountData()}
+              />
+            ))
+          )}
+        </div>
+      </DashboardCard>
+    );
+  };
+
   const renderAccessibility = () => (
     <DashboardCard eyebrow={t('section.accessibility')} title={t('accessibility.title')}>
       <p className="mb-6 text-sm text-slate-500">{t('accessibility.subtitle')}</p>
@@ -1078,12 +1389,17 @@ export default function HomeWorkspacePage() {
       case 'ai-references':
         return renderAiSettings();
       case 'current-room':
-      case 'recent-rooms':
         return renderActiveRooms();
+      case 'my-room':
+        return renderMyRooms();
+      case 'recent-rooms':
+        return renderRecentRooms();
       case 'discussion-outputs':
         return renderHistoryRooms();
       case 'create-room':
         return renderCreateRoom();
+      case 'group-lobby':
+        return <GroupLobbyPanel />;
       case 'join-room':
         return renderJoinRoom();
       case 'profile':
@@ -1102,12 +1418,10 @@ export default function HomeWorkspacePage() {
   > = {
     home: { label: t('section.home'), description: t('section.home.desc'), icon: Home },
     'current-room': { label: t('section.currentRoom'), description: t('section.currentRoom.desc'), icon: DoorOpen },
+    'my-room': { label: '我的房间', description: '管理你创建的房间，修改主题、标签、人数和锁定状态。', icon: Settings2 },
     'join-room': { label: t('section.joinRoom'), description: t('section.joinRoom.desc'), icon: Users },
     'create-room': { label: t('section.createRoom'), description: t('section.createRoom.desc'), icon: PlusCircle },
-    mindmap: { label: t('section.mindMap'), description: t('section.mindMap.desc'), icon: BrainCircuit },
-    'ai-discussion': { label: t('section.aiDiscussion'), description: t('section.aiDiscussion.desc'), icon: Sparkles },
-    whiteboard: { label: t('section.whiteboard'), description: t('section.whiteboard.desc'), icon: PenLine },
-    'shared-files': { label: t('section.sharedFiles'), description: t('section.sharedFiles.desc'), icon: FileText },
+    'group-lobby': { label: '组队大厅', description: '找队友，开房间，入座即聊。', icon: Gamepad2 },
     'recent-rooms': { label: t('section.recentRooms'), description: t('section.recentRooms.desc'), icon: Clock3 },
     'discussion-outputs': { label: t('section.discussionOutputs'), description: t('section.discussionOutputs.desc'), icon: MessageSquare },
     profile: { label: t('section.profile'), description: t('section.profile.desc'), icon: User },
@@ -1261,23 +1575,16 @@ export default function HomeWorkspacePage() {
       items: [
         { id: 'home', label: t('nav.home'), icon: Home },
         { id: 'current-room', label: t('nav.currentRoom'), icon: DoorOpen, count: overview?.activeRooms.length ?? 0 },
+        { id: 'my-room', label: '我的房间', icon: Settings2, count: overview?.activeRooms.filter((r) => r.role === 'OWNER').length ?? 0 },
         { id: 'join-room', label: t('nav.joinRoom'), icon: Users },
         { id: 'create-room', label: t('nav.createRoom'), icon: PlusCircle },
-      ],
-    },
-    {
-      group: t('nav.discussionTools'),
-      items: [
-        { id: 'mindmap', label: t('nav.mindMap'), icon: BrainCircuit },
-        { id: 'ai-discussion', label: t('nav.aiDiscussion'), icon: Sparkles },
-        { id: 'whiteboard', label: t('nav.whiteboard'), icon: PenLine },
-        { id: 'shared-files', label: t('nav.sharedFiles'), icon: FileText },
+        { id: 'group-lobby', label: '组队大厅 🎮', icon: Gamepad2 },
       ],
     },
     {
       group: t('nav.history'),
       items: [
-        { id: 'recent-rooms', label: t('nav.recentRooms'), icon: Clock3, count: overview?.roomHistory.length ?? 0 },
+        { id: 'recent-rooms', label: t('nav.recentRooms'), icon: Clock3, count: (overview?.activeRooms.length ?? 0) + (overview?.roomHistory.length ?? 0) },
         { id: 'discussion-outputs', label: t('nav.discussionOutputs'), icon: MessageSquare },
       ],
     },
@@ -1379,6 +1686,15 @@ export default function HomeWorkspacePage() {
 
           {/* Footer Actions */}
           <div className="border-t border-slate-100 px-3 py-3 space-y-1.5">
+            {user.isAdmin && (
+              <button
+                type="button"
+                onClick={() => navigate('/admin')}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
+              >
+                🛡️ Admin Panel
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void refreshAccountData()}

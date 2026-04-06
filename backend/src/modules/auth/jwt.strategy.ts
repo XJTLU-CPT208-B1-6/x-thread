@@ -18,6 +18,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     account?: string | null;
     email?: string | null;
     isGuest?: boolean;
+    isAdmin?: boolean;
   }) {
     return {
       userId: payload.sub,
@@ -25,6 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email ?? null,
       nickname: payload.nickname ?? 'Guest',
       isGuest: payload.isGuest ?? true,
+      isAdmin: payload.isAdmin ?? false,
     };
   }
 }

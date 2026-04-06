@@ -4,4 +4,5 @@ export interface AuthenticatedUser {
   email?: string | null;
   nickname: string;
   isGuest: boolean;
+  isAdmin: boolean;
 }

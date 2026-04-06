@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { clearAuthSession, getStoredAuthToken, syncUserFromProfile } from './lib/auth';
 import { saveAiSettings } from './lib/ai-settings';
 import HomeWorkspacePage from './pages/HomeWorkspacePage';
+import GroupLobbyPage from './pages/GroupLobbyPage';
+import AdminPage from './pages/AdminPage';
 import LobbyPageV2 from './pages/LobbyPageV2';
 import IceBreakPage from './pages/IceBreakPage';
 import DiscussPageV2 from './pages/DiscussPageV2';
@@ -65,6 +67,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomeWorkspacePage />} />
+      <Route path="/lobby" element={<GroupLobbyPage />} />
+      <Route path="/admin" element={<AdminPage />} />
       <Route path="/room/:code/lobby" element={<LobbyPageV2 />} />
       <Route path="/room/:code/icebreak" element={<IceBreakPage />} />
       <Route path="/room/:code/discuss" element={<DiscussPageV2 />} />

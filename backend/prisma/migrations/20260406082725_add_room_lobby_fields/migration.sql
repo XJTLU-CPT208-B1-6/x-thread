@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Room" ADD COLUMN     "isLocked" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[];
