@@ -7,6 +7,8 @@ export type AccountProfile = {
   account?: string | null;
   email?: string | null;
   nickname: string;
+  realName?: string | null;
+  xjtluEmail?: string | null;
   avatar?: string | null;
   isGuest: boolean;
 };
@@ -55,6 +57,8 @@ export const syncUserFromProfile = (profile: AccountProfile) => {
     name: profile.nickname,
     account: profile.account ?? null,
     email: profile.email ?? null,
+    realName: profile.realName ?? null,
+    xjtluEmail: profile.xjtluEmail ?? null,
     avatar: profile.avatar ?? null,
     isGuest: profile.isGuest,
   });

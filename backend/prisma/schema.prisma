@@ -12,6 +12,8 @@ model User {
   username     String?        @unique
   email        String?        @unique
   nickname     String
+  realName     String?
+  xjtluEmail   String?
   avatar       String?
   passwordHash String?
   isGuest      Boolean        @default(true)

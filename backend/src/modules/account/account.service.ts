@@ -149,12 +149,17 @@ export class AccountService {
     userId: string,
     dto: {
       nickname?: string;
+      realName?: string;
+      xjtluEmail?: string;
       avatarDataUrl?: string;
       clearAvatar?: boolean;
     },
   ) {
     const user = await this.ensureRegisteredUser(userId);
     const nickname = dto.nickname?.trim();
+    const realName = dto.realName?.trim() ?? undefined;
+    const xjtluEmail = dto.xjtluEmail?.trim() ?? undefined;
+
     const nextAvatar =
       dto.clearAvatar || dto.avatarDataUrl === ''
         ? null
@@ -166,10 +171,16 @@ export class AccountService {
       throw new BadRequestException('Nickname is required');
     }
 
+    if (xjtluEmail !== undefined && xjtluEmail !== '' && !xjtluEmail.endsWith('@xjtlu.edu.cn') && !xjtluEmail.endsWith('@student.xjtlu.edu.cn')) {
+      throw new BadRequestException('XJTLU email must end with @xjtlu.edu.cn or @student.xjtlu.edu.cn');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
         nickname: nickname ?? user.nickname,
+        realName: realName !== undefined ? (realName || null) : user.realName,
+        xjtluEmail: xjtluEmail !== undefined ? (xjtluEmail || null) : user.xjtluEmail,
         avatar: nextAvatar,
       },
     });
@@ -266,6 +277,8 @@ export class AccountService {
     username?: string | null;
     email?: string | null;
     nickname: string;
+    realName?: string | null;
+    xjtluEmail?: string | null;
     avatar?: string | null;
     isGuest: boolean;
   }) {
@@ -274,6 +287,8 @@ export class AccountService {
       account: user.username ?? null,
       email: user.email ?? null,
       nickname: user.nickname,
+      realName: user.realName ?? null,
+      xjtluEmail: user.xjtluEmail ?? null,
       avatar: user.avatar ?? null,
       isGuest: user.isGuest,
     };

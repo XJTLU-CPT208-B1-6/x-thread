@@ -3,21 +3,27 @@ import {
   type ComponentType,
   type ReactNode,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  BrainCircuit,
   Clock3,
   DoorOpen,
+  FileText,
+  Home,
   ImagePlus,
+  Languages,
   LogOut,
+  MessageSquare,
+  PenLine,
   PlusCircle,
   RefreshCw,
   Settings2,
   Sparkles,
   Trash2,
+  User,
   Users,
 } from 'lucide-react';
 import { AccountAiSettingsPanel } from '../components/AccountAiSettingsPanel';
@@ -34,11 +40,26 @@ import {
   getStoredAuthToken,
   syncUserFromProfile,
 } from '../lib/auth';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { useT } from '../lib/i18n';
 import { saveAiSettings } from '../lib/ai-settings';
 import { useRoomStore } from '../stores/useRoomStore';
 import { useUserStore } from '../stores/useUserStore';
 
-type DashboardSection = 'rooms' | 'ai' | 'active' | 'history';
+type DashboardSection =
+  | 'home'
+  | 'current-room'
+  | 'join-room'
+  | 'create-room'
+  | 'mindmap'
+  | 'ai-discussion'
+  | 'whiteboard'
+  | 'shared-files'
+  | 'recent-rooms'
+  | 'discussion-outputs'
+  | 'profile'
+  | 'ai-references'
+  | 'accessibility';
 
 const phaseLabelMap: Record<string, string> = {
   LOBBY: '准备中',
@@ -160,9 +181,10 @@ export default function HomeWorkspacePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { setRoom, clearRoom } = useRoomStore();
   const { user } = useUserStore();
+  const t = useT();
+  const { language, setLanguage } = useLanguageStore();
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
-  const [roomTab, setRoomTab] = useState<'create' | 'join'>('create');
-  const [activeSection, setActiveSection] = useState<DashboardSection>('rooms');
+  const [activeSection, setActiveSection] = useState<DashboardSection>('home');
   const [accountForm, setAccountForm] = useState({ account: '', nickname: '', password: '' });
   const [roomForm, setRoomForm] = useState({
     topic: '',
@@ -181,16 +203,8 @@ export default function HomeWorkspacePage() {
   const [roomError, setRoomError] = useState('');
   const [profileNotice, setProfileNotice] = useState('');
   const [profileError, setProfileError] = useState('');
-
-  const aiStatusText = useMemo(() => {
-    if (!overview) {
-      return '请先登录';
-    }
-
-    return overview.aiSettings.hasApiKey
-      ? `${overview.aiSettings.provider} / ${overview.aiSettings.model}`
-      : '尚未保存账号级 AI 配置';
-  }, [overview]);
+  const [profileForm, setProfileForm] = useState({ nickname: '', realName: '', xjtluEmail: '' });
+  const [profileSaving, setProfileSaving] = useState(false);
 
   const refreshAccountData = async () => {
     if (!user?.id && !getStoredAuthToken()) {
@@ -220,6 +234,17 @@ export default function HomeWorkspacePage() {
   useEffect(() => {
     void refreshAccountData();
   }, [user?.id]);
+
+  // Sync profile form when user data is available
+  useEffect(() => {
+    if (user) {
+      setProfileForm({
+        nickname: user.name ?? '',
+        realName: user.realName ?? '',
+        xjtluEmail: user.xjtluEmail ?? '',
+      });
+    }
+  }, [user?.name, user?.realName, user?.xjtluEmail]);
 
   const updateAccountForm = (patch: Partial<typeof accountForm>) => {
     setAccountForm((current) => ({ ...current, ...patch }));
@@ -253,7 +278,7 @@ export default function HomeWorkspacePage() {
       });
       applyAuthSession(session);
       setAuthMessage('登录成功，账号数据已恢复。');
-      setActiveSection('rooms');
+      setActiveSection('home');
       await refreshAccountData();
     } catch (error: any) {
       setAuthError(error?.response?.data?.message ?? '登录失败');
@@ -281,7 +306,7 @@ export default function HomeWorkspacePage() {
       const session = await authService.register(payload);
       applyAuthSession(session);
       setAuthMessage('注册成功，当前账号已登录。');
-      setActiveSection('rooms');
+      setActiveSection('home');
       await refreshAccountData();
     } catch (error: any) {
       setAuthError(error?.response?.data?.message ?? '注册失败');
@@ -336,7 +361,7 @@ export default function HomeWorkspacePage() {
     clearAuthSession();
     clearRoom();
     setOverview(null);
-    setActiveSection('rooms');
+    setActiveSection('home');
     setAuthTab('login');
     setAuthMessage('已退出登录。');
     setAuthError('');
@@ -408,7 +433,7 @@ export default function HomeWorkspacePage() {
       clearAuthSession();
       clearRoom();
       setOverview(null);
-      setActiveSection('rooms');
+      setActiveSection('home');
       setAuthTab('login');
       setAuthMessage('账号已注销。');
     } catch (error: any) {
@@ -418,81 +443,51 @@ export default function HomeWorkspacePage() {
     }
   };
 
-  const renderRoomWorkspace = () => (
+  const renderCreateRoom = () => (
     <DashboardCard
-      eyebrow="Room Workspace"
-      title="创建或加入房间"
-      description="登录后你可以直接继续现有讨论，也可以发起一个新的房间。"
+      eyebrow="Create Room"
+      title="创建新房间"
+      description="发起一个新的讨论房间，设置主题、模式和人数上限。"
     >
-      <div className="mb-5 inline-flex rounded-2xl bg-blue-50 p-1 border border-blue-100">
-        {(['create', 'join'] as const).map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setRoomTab(tab)}
-            className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              roomTab === tab
-                ? 'bg-white text-blue-950 shadow-sm border border-blue-100/50'
-                : 'text-blue-700/70 hover:text-blue-900'
-            }`}
-          >
-            {tab === 'create' ? '创建房间' : '加入房间'}
-          </button>
-        ))}
-      </div>
-
-      {roomTab === 'create' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="lg:col-span-2">
-            <label className="mb-2 block text-sm font-medium text-blue-950">讨论主题</label>
-            <input
-              value={roomForm.topic}
-              onChange={(event) => updateRoomForm({ topic: event.target.value })}
-              placeholder="例如：AI 如何改变工程协作"
-              className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-blue-950">房间模式</label>
-            <select
-              value={roomForm.mode}
-              onChange={(event) =>
-                updateRoomForm({ mode: event.target.value as 'ONSITE' | 'REMOTE' })
-              }
-              className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
-            >
-              <option value="ONSITE">线下协作</option>
-              <option value="REMOTE">远程协作</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-blue-950">人数上限</label>
-            <input
-              type="number"
-              min={2}
-              max={20}
-              value={roomForm.maxMembers}
-              onChange={(event) =>
-                updateRoomForm({
-                  maxMembers: Math.max(2, Math.min(20, Number(event.target.value) || 8)),
-                })
-              }
-              className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
-            />
-          </div>
-        </div>
-      ) : (
-        <div>
-          <label className="mb-2 block text-sm font-medium text-blue-950">房间码</label>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <label className="mb-2 block text-sm font-medium text-blue-950">讨论主题</label>
           <input
-            value={roomForm.code}
-            onChange={(event) => updateRoomForm({ code: event.target.value.toUpperCase() })}
-            placeholder="输入 6 位房间码"
-            maxLength={6}
-            className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.28em] outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
+            value={roomForm.topic}
+            onChange={(event) => updateRoomForm({ topic: event.target.value })}
+            placeholder="例如：AI 如何改变工程协作"
+            className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100"
           />
         </div>
-      )}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-blue-950">房间模式</label>
+          <select
+            value={roomForm.mode}
+            onChange={(event) =>
+              updateRoomForm({ mode: event.target.value as 'ONSITE' | 'REMOTE' })
+            }
+            className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
+          >
+            <option value="ONSITE">线下协作</option>
+            <option value="REMOTE">远程协作</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-medium text-blue-950">人数上限</label>
+          <input
+            type="number"
+            min={2}
+            max={20}
+            value={roomForm.maxMembers}
+            onChange={(event) =>
+              updateRoomForm({
+                maxMembers: Math.max(2, Math.min(20, Number(event.target.value) || 8)),
+              })
+            }
+            className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
+          />
+        </div>
+      </div>
 
       {roomError ? (
         <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -502,15 +497,45 @@ export default function HomeWorkspacePage() {
 
       <button
         type="button"
-        onClick={() => void (roomTab === 'create' ? handleCreateRoom() : handleJoinRoom())}
+        onClick={() => void handleCreateRoom()}
         disabled={roomBusy}
         className="mt-5 inline-flex rounded-2xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {roomBusy
-          ? '处理中...'
-          : roomTab === 'create'
-            ? '创建并进入房间'
-            : '加入并继续讨论'}
+        {roomBusy ? '处理中...' : '创建并进入房间'}
+      </button>
+    </DashboardCard>
+  );
+
+  const renderJoinRoom = () => (
+    <DashboardCard
+      eyebrow="Join Room"
+      title="加入房间"
+      description="输入 6 位房间码，快速加入已有的讨论。"
+    >
+      <div>
+        <label className="mb-2 block text-sm font-medium text-blue-950">房间码</label>
+        <input
+          value={roomForm.code}
+          onChange={(event) => updateRoomForm({ code: event.target.value.toUpperCase() })}
+          placeholder="输入 6 位房间码"
+          maxLength={6}
+          className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.28em] outline-none transition focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 text-blue-950"
+        />
+      </div>
+
+      {roomError ? (
+        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {roomError}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => void handleJoinRoom()}
+        disabled={roomBusy}
+        className="mt-5 inline-flex rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {roomBusy ? '处理中...' : '加入并继续讨论'}
       </button>
     </DashboardCard>
   );
@@ -646,16 +671,428 @@ export default function HomeWorkspacePage() {
     </DashboardCard>
   );
 
+  const renderHome = () => {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? '早安' : hour < 18 ? '下午好' : '晚上好';
+    const activeCount = overview?.activeRooms.length ?? 0;
+    const latestActive = overview?.activeRooms[0] ?? null;
+    const latestHistory = overview?.roomHistory.slice(0, 3) ?? [];
+    const hasAiKey = overview?.aiSettings.hasApiKey ?? false;
+
+    return (
+      <div className="space-y-6">
+        {/* Hero Banner */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-blue-600 to-violet-600 p-6 text-white">
+          {/* decorative star */}
+          <div className="pointer-events-none absolute right-6 top-1/2 -translate-y-1/2 opacity-10">
+            <Sparkles className="h-32 w-32" />
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-white/60 mb-2 flex items-center gap-1.5">
+            <Clock3 className="h-3.5 w-3.5" />
+            待办继续
+          </div>
+          <h1 className="text-2xl font-black leading-snug mb-1">
+            {greeting}，{user?.name} 👋
+          </h1>
+          <p className="text-base font-semibold text-white/90 mb-4">
+            你今天有{' '}
+            <span className="text-yellow-300 font-black">{activeCount}</span>{' '}
+            个待继续讨论
+          </p>
+          {latestActive ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-xl bg-white/15 px-3 py-2 backdrop-blur-sm">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-white/60 mb-0.5">
+                  最近一次讨论主题
+                </div>
+                <div className="text-sm font-bold text-white">{latestActive.topic}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(resolveRoomPath(latestActive))}
+                className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-indigo-700 transition hover:bg-white/90"
+              >
+                快速进入 →
+              </button>
+            </div>
+          ) : (
+            <div className="text-sm text-white/60">暂无活跃房间，点击下方快捷入口开始。</div>
+          )}
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+          <div className="space-y-6">
+            {/* Quick Access */}
+            <div>
+              <div className="flex items-center gap-2 mb-3 text-sm font-bold text-slate-700">
+                <Sparkles className="h-4 w-4 text-yellow-500" />
+                快捷入口
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    icon: <PlusCircle className="h-6 w-6 text-indigo-500" />,
+                    bg: 'bg-indigo-50',
+                    label: '创建课堂讨论',
+                    sub: '快速发起学术研讨',
+                    action: () => setActiveSection('create-room'),
+                  },
+                  {
+                    icon: <Users className="h-6 w-6 text-emerald-500" />,
+                    bg: 'bg-emerald-50',
+                    label: '加入房间',
+                    sub: '输入房间码快速进入',
+                    action: () => setActiveSection('join-room'),
+                  },
+                  {
+                    icon: <Sparkles className="h-6 w-6 text-amber-500" />,
+                    bg: 'bg-amber-50',
+                    label: '开始破冰',
+                    sub: 'AI 辅助活跃气氛',
+                    action: () => latestActive && navigate(resolveRoomPath(latestActive)),
+                  },
+                  {
+                    icon: <FileText className="h-6 w-6 text-rose-500" />,
+                    bg: 'bg-rose-50',
+                    label: '从文件生成讨论',
+                    sub: '上传 PDF/PPT 自动解析',
+                    action: () => setActiveSection('shared-files'),
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={item.action}
+                    className="flex flex-col items-start gap-3 rounded-2xl border border-slate-100 bg-white p-4 text-left shadow-sm transition hover:shadow-md hover:border-slate-200"
+                  >
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.bg}`}>
+                      {item.icon}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{item.label}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{item.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Discussion Outputs */}
+            <div>
+              <div className="flex items-center gap-2 mb-3 text-sm font-bold text-slate-700">
+                <MessageSquare className="h-4 w-4 text-blue-500" />
+                最近讨论成果
+              </div>
+              <div className="space-y-2">
+                {latestHistory.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
+                    暂无历史讨论记录
+                  </div>
+                ) : (
+                  latestHistory.map((room) => (
+                    <button
+                      key={room.roomId}
+                      type="button"
+                      onClick={() => navigate(`/room/${room.code}/history`)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-slate-100 bg-white px-4 py-3 text-left shadow-sm transition hover:shadow-md hover:border-slate-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                          <MessageSquare className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">{room.topic}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">
+                            {room.leftAt ? `离开于 ${formatTime(room.leftAt)}` : `最近在线 ${formatTime(room.lastSeenAt)}`}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-slate-300 text-lg">→</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* AI Suggestions Panel */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 mb-1 text-sm font-bold text-slate-700">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              AI 助手建议
+            </div>
+
+            {/* Privacy tip */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 mb-3">
+                <User className="h-4 w-4 text-white" />
+              </div>
+              <div className="text-sm font-bold text-slate-800 mb-1">隐私提醒</div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                你最近参与较少，建议使用<span className="font-semibold text-slate-700">匿名模式</span>参与讨论，这有助于你更自由地表达观点。
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveSection('profile')}
+                className="mt-2 text-xs font-semibold text-indigo-600 hover:underline"
+              >
+                立即开启 →
+              </button>
+            </div>
+
+            {/* Pending task */}
+            {latestHistory.length > 0 && (
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-400 mb-3">
+                  <Clock3 className="h-4 w-4 text-white" />
+                </div>
+                <div className="text-sm font-bold text-slate-800 mb-1">任务待续</div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  上一讨论「{latestHistory[0].topic}」未完成总结，是否现在继续生成？
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/room/${latestHistory[0].code}/history`)}
+                  className="mt-2 text-xs font-semibold text-amber-600 hover:underline"
+                >
+                  继续总结 →
+                </button>
+              </div>
+            )}
+
+            {/* Weekly activity */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-bold text-slate-800">本周活跃度</div>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                  {activeCount > 0 ? 'ACTIVE' : 'GOOD'}
+                </span>
+              </div>
+              <div className="flex items-end justify-between gap-1 h-10 mb-2">
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
+                  const height = [30, 50, 70, 40, 90, 20, 10][i];
+                  return (
+                    <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                      <div
+                        className="w-full rounded-sm bg-indigo-200"
+                        style={{ height: `${height}%` }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+                  <span key={i} className="flex-1 text-center">{d}</span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {hasAiKey ? '已配置 AI，可使用全部功能。' : '比上周多参与了 12% 的讨论'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleSaveProfile = async () => {
+    resetProfileFeedback();
+    setProfileSaving(true);
+    try {
+      const result = await accountService.updateProfile({
+        nickname: profileForm.nickname.trim() || undefined,
+        realName: profileForm.realName.trim(),
+        xjtluEmail: profileForm.xjtluEmail.trim(),
+      });
+      syncUserFromProfile(result.user);
+      setProfileNotice('个人信息已保存。');
+      await refreshAccountData();
+    } catch (error: any) {
+      setProfileError(error?.response?.data?.message ?? '保存失败');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const renderProfile = () => {
+    return (
+      <DashboardCard eyebrow="Profile" title="个人信息">
+        <div className="flex flex-col gap-6 lg:flex-row">
+          {/* Avatar column */}
+          <div className="flex flex-col items-center gap-3 lg:w-40 shrink-0">
+            <div className="relative h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-400 to-violet-500 text-2xl font-black text-white">
+                  {getInitials(user?.name)}
+                </div>
+              )}
+              {avatarBusy && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white">
+                  上传中
+                </div>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+              onChange={(event) => void handleAvatarPick(event)}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarBusy}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              更换头像
+            </button>
+            {user?.avatar && (
+              <button
+                type="button"
+                onClick={() => void handleClearAvatar()}
+                disabled={avatarBusy}
+                className="w-full rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-500 transition hover:bg-rose-50 disabled:opacity-50"
+              >
+                移除头像
+              </button>
+            )}
+            <p className="text-center text-[11px] text-slate-400 leading-relaxed">
+              PNG / JPG / WEBP<br />最大 450 KB
+            </p>
+          </div>
+
+          {/* Fields column */}
+          <div className="flex-1 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  账号 ID
+                </label>
+                <input
+                  value={user?.account ?? ''}
+                  disabled
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-400 cursor-not-allowed"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">账号 ID 不可修改</p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  昵称 <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  value={profileForm.nickname}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, nickname: e.target.value }))}
+                  placeholder="房间内显示的名字"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  真实姓名
+                </label>
+                <input
+                  value={profileForm.realName}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, realName: e.target.value }))}
+                  placeholder="例如：张三"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  西浦邮箱
+                </label>
+                <input
+                  value={profileForm.xjtluEmail}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, xjtluEmail: e.target.value }))}
+                  placeholder="xxx@student.xjtlu.edu.cn"
+                  type="email"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  仅接受 @xjtlu.edu.cn 或 @student.xjtlu.edu.cn
+                </p>
+              </div>
+            </div>
+
+            {profileNotice && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
+                {profileNotice}
+              </div>
+            )}
+            {profileError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-600">
+                {profileError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleSaveProfile()}
+              disabled={profileSaving}
+              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
+            >
+              {profileSaving ? '保存中...' : '保存信息'}
+            </button>
+          </div>
+        </div>
+      </DashboardCard>
+    );
+  };
+
+  const renderAccessibility = () => (
+    <DashboardCard eyebrow={t('section.accessibility')} title={t('accessibility.title')}>
+      <p className="mb-6 text-sm text-slate-500">{t('accessibility.subtitle')}</p>
+      <div className="flex items-center gap-4">
+        <span className={`text-sm font-semibold ${language === 'zh' ? 'text-blue-600' : 'text-slate-400'}`}>
+          {t('accessibility.chinese')}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={language === 'en'}
+          onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
+          className={`relative inline-flex h-7 w-14 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+            language === 'en' ? 'bg-blue-600' : 'bg-slate-200'
+          }`}
+        >
+          <span
+            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
+              language === 'en' ? 'translate-x-7' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+        <span className={`text-sm font-semibold ${language === 'en' ? 'text-blue-600' : 'text-slate-400'}`}>
+          {t('accessibility.english')}
+        </span>
+      </div>
+      <p className="mt-4 text-xs text-slate-400">{t('accessibility.hint')}</p>
+    </DashboardCard>
+  );
+
   const renderActiveSection = () => {
     switch (activeSection) {
-      case 'ai':
+      case 'ai-references':
         return renderAiSettings();
-      case 'active':
+      case 'current-room':
+      case 'recent-rooms':
         return renderActiveRooms();
-      case 'history':
+      case 'discussion-outputs':
         return renderHistoryRooms();
+      case 'create-room':
+        return renderCreateRoom();
+      case 'join-room':
+        return renderJoinRoom();
+      case 'profile':
+        return renderProfile();
+      case 'accessibility':
+        return renderAccessibility();
+      case 'home':
       default:
-        return renderRoomWorkspace();
+        return renderHome();
     }
   };
 
@@ -663,26 +1100,19 @@ export default function HomeWorkspacePage() {
     DashboardSection,
     { label: string; description: string; icon: ComponentType<{ className?: string }> }
   > = {
-    rooms: {
-      label: '创建 / 加入房间',
-      description: '创建新房间，或输入房间码快速加入。',
-      icon: DoorOpen,
-    },
-    ai: {
-      label: 'AI 设置',
-      description: '为当前账号保存提供商、模型和 API Key。',
-      icon: Sparkles,
-    },
-    active: {
-      label: '正在参与的房间',
-      description: '继续进入你当前仍在参与的讨论房间。',
-      icon: Users,
-    },
-    history: {
-      label: '14 天内的房间',
-      description: '查看最近 14 天离开的房间记录并重新加入。',
-      icon: Clock3,
-    },
+    home: { label: t('section.home'), description: t('section.home.desc'), icon: Home },
+    'current-room': { label: t('section.currentRoom'), description: t('section.currentRoom.desc'), icon: DoorOpen },
+    'join-room': { label: t('section.joinRoom'), description: t('section.joinRoom.desc'), icon: Users },
+    'create-room': { label: t('section.createRoom'), description: t('section.createRoom.desc'), icon: PlusCircle },
+    mindmap: { label: t('section.mindMap'), description: t('section.mindMap.desc'), icon: BrainCircuit },
+    'ai-discussion': { label: t('section.aiDiscussion'), description: t('section.aiDiscussion.desc'), icon: Sparkles },
+    whiteboard: { label: t('section.whiteboard'), description: t('section.whiteboard.desc'), icon: PenLine },
+    'shared-files': { label: t('section.sharedFiles'), description: t('section.sharedFiles.desc'), icon: FileText },
+    'recent-rooms': { label: t('section.recentRooms'), description: t('section.recentRooms.desc'), icon: Clock3 },
+    'discussion-outputs': { label: t('section.discussionOutputs'), description: t('section.discussionOutputs.desc'), icon: MessageSquare },
+    profile: { label: t('section.profile'), description: t('section.profile.desc'), icon: User },
+    'ai-references': { label: t('section.aiReferences'), description: t('section.aiReferences.desc'), icon: Settings2 },
+    accessibility: { label: t('section.accessibility'), description: t('section.accessibility.desc'), icon: Languages },
   };
 
   if (!user) {
@@ -822,163 +1252,158 @@ export default function HomeWorkspacePage() {
     );
   }
 
-  const navItems: Array<{
-    id: DashboardSection;
-    label: string;
-    count?: number;
-    icon: ComponentType<{ className?: string }>;
+  const navGroups: Array<{
+    group: string;
+    items: Array<{ id: DashboardSection; label: string; count?: number; icon: ComponentType<{ className?: string }> }>;
   }> = [
-    { id: 'rooms', label: '创建 / 加入房间', icon: PlusCircle },
-    { id: 'ai', label: 'AI 设置', icon: Settings2 },
-    { id: 'active', label: '正在参与的房间', icon: Users, count: overview?.activeRooms.length ?? 0 },
-    { id: 'history', label: '14 天内的房间', icon: Clock3, count: overview?.roomHistory.length ?? 0 },
+    {
+      group: t('nav.workspace'),
+      items: [
+        { id: 'home', label: t('nav.home'), icon: Home },
+        { id: 'current-room', label: t('nav.currentRoom'), icon: DoorOpen, count: overview?.activeRooms.length ?? 0 },
+        { id: 'join-room', label: t('nav.joinRoom'), icon: Users },
+        { id: 'create-room', label: t('nav.createRoom'), icon: PlusCircle },
+      ],
+    },
+    {
+      group: t('nav.discussionTools'),
+      items: [
+        { id: 'mindmap', label: t('nav.mindMap'), icon: BrainCircuit },
+        { id: 'ai-discussion', label: t('nav.aiDiscussion'), icon: Sparkles },
+        { id: 'whiteboard', label: t('nav.whiteboard'), icon: PenLine },
+        { id: 'shared-files', label: t('nav.sharedFiles'), icon: FileText },
+      ],
+    },
+    {
+      group: t('nav.history'),
+      items: [
+        { id: 'recent-rooms', label: t('nav.recentRooms'), icon: Clock3, count: overview?.roomHistory.length ?? 0 },
+        { id: 'discussion-outputs', label: t('nav.discussionOutputs'), icon: MessageSquare },
+      ],
+    },
+    {
+      group: t('nav.settings'),
+      items: [
+        { id: 'profile', label: t('nav.profile'), icon: User },
+        { id: 'ai-references', label: t('nav.aiReferences'), icon: Settings2 },
+        { id: 'accessibility', label: t('nav.accessibility'), icon: Languages },
+      ],
+    },
   ];
 
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_20%),radial-gradient(circle_at_bottom_right,_rgba(99,102,241,0.12),_transparent_24%),linear-gradient(135deg,_#eff6ff_0%,_#dbeafe_32%,_#ffffff_100%)] p-4 text-blue-950">
       <div className="mx-auto flex h-full max-w-[1600px] gap-4">
-        <aside className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-[32px] border border-blue-200/50 bg-white/90 p-5 text-blue-950 shadow-[0_28px_80px_rgba(30,58,138,0.1)] backdrop-blur">
-          <div className="rounded-[28px] border border-blue-100 bg-blue-50/50 p-5">
-            <div className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-600">
-              X-Thread Console
+        <aside className="flex w-[280px] shrink-0 flex-col overflow-hidden rounded-[32px] border border-slate-200/60 bg-white text-slate-800 shadow-[0_8px_32px_rgba(0,0,0,0.06)]">
+          {/* Console */}
+          <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+            <div className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">
+              {t('console.title')}
             </div>
-            <div className="mt-4 flex items-start gap-4">
+            <div className="flex items-center gap-3">
               <SidebarAvatar name={user.name} avatar={user.avatar} busy={avatarBusy} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-xl font-black text-blue-950">{user.name}</div>
-                <div className="mt-1 truncate text-sm text-blue-700/80">
-                  {user.account ?? 'No account'}
-                </div>
-                {user.email ? (
-                  <div className="mt-1 truncate text-xs text-blue-600/70">{user.email}</div>
-                ) : null}
+                <div className="truncate text-sm font-semibold text-slate-800">{user.name}</div>
+                <div className="truncate text-xs text-slate-400 mt-0.5">{user.account ?? t('console.noAccount')}</div>
               </div>
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-                onChange={(event) => void handleAvatarPick(event)}
-                className="hidden"
-              />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={avatarBusy}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                title="Upload avatar"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50"
               >
-                <ImagePlus className="h-4 w-4" />
-                上传头像
+                <ImagePlus className="h-3.5 w-3.5" />
               </button>
-              {user.avatar ? (
-                <button
-                  type="button"
-                  onClick={() => void handleClearAvatar()}
-                  disabled={avatarBusy}
-                  className="rounded-2xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  移除头像
-                </button>
-              ) : null}
             </div>
-
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+              onChange={(event) => void handleAvatarPick(event)}
+              className="hidden"
+            />
             {profileNotice ? (
-              <div className="mt-4 rounded-2xl border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-800">
-                {profileNotice}
-              </div>
+              <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">{profileNotice}</div>
             ) : null}
             {profileError ? (
-              <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600">
-                {profileError}
-              </div>
+              <div className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs text-rose-600">{profileError}</div>
             ) : null}
           </div>
 
-          <div className="mt-5 space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = activeSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveSection(item.id);
-                    resetProfileFeedback();
-                  }}
-                  className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition ${
-                    active
-                      ? 'bg-purple-600 text-white shadow-[0_18px_40px_rgba(147,51,234,0.3)]'
-                      : 'bg-blue-50/50 text-blue-900 hover:bg-blue-100'
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-3">
-                    <Icon className="h-4 w-4" />
-                    <span className="text-sm font-semibold">{item.label}</span>
-                  </span>
-                  {item.count !== undefined ? (
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                        active ? 'bg-purple-800/40 text-purple-50' : 'bg-blue-200/50 text-blue-800'
-                      }`}
-                    >
-                      {item.count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-5 grid gap-3 rounded-[28px] border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-900">
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-blue-600">AI Status</div>
-              <div className="mt-2 font-semibold text-blue-950">{aiStatusText}</div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white px-3 py-3 shadow-sm border border-blue-100/50">
-                <div className="text-xs uppercase tracking-[0.16em] text-blue-500">Active</div>
-                <div className="mt-2 text-xl font-black text-blue-950">
-                  {overviewBusy ? '...' : overview?.activeRooms.length ?? 0}
+          {/* Nav Groups */}
+          <div className="flex-1 overflow-y-auto px-2 py-2">
+            {navGroups.map((group) => (
+              <div key={group.group} className="mb-3">
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
+                  {group.group}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = activeSection === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSection(item.id);
+                          resetProfileFeedback();
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-all ${
+                          active
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="inline-flex items-center gap-2.5">
+                          <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'text-slate-400'}`} />
+                          <span className="text-[13px] font-medium">{item.label}</span>
+                        </span>
+                        {item.count !== undefined ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                              active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {item.count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="rounded-2xl bg-white px-3 py-3 shadow-sm border border-blue-100/50">
-                <div className="text-xs uppercase tracking-[0.16em] text-blue-500">History</div>
-                <div className="mt-2 text-xl font-black text-blue-950">
-                  {overviewBusy ? '...' : overview?.roomHistory.length ?? 0}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
 
-          <div className="mt-auto space-y-2 pt-5">
+          {/* Footer Actions */}
+          <div className="border-t border-slate-100 px-3 py-3 space-y-1.5">
             <button
               type="button"
               onClick={() => void refreshAccountData()}
               disabled={overviewBusy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-blue-200 px-4 py-2.5 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
             >
-              <RefreshCw className={`h-4 w-4 ${overviewBusy ? 'animate-spin' : ''}`} />
-              刷新工作台
+              <RefreshCw className={`h-3.5 w-3.5 ${overviewBusy ? 'animate-spin' : ''}`} />
+              {t('footer.refresh')}
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-100/80 px-4 py-2.5 text-sm font-semibold text-amber-900 transition hover:bg-amber-200/80"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"
             >
-              <LogOut className="h-4 w-4" />
-              退出登录
+              <LogOut className="h-3.5 w-3.5" />
+              {t('footer.signOut')}
             </button>
             <button
               type="button"
               onClick={() => void handleCancelAccount()}
               disabled={accountBusy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-50"
             >
-              <Trash2 className="h-4 w-4" />
-              {accountBusy ? '注销中...' : '注销账号'}
+              <Trash2 className="h-3.5 w-3.5" />
+              {accountBusy ? t('footer.deleting') : t('footer.deleteAccount')}
             </button>
           </div>
         </aside>

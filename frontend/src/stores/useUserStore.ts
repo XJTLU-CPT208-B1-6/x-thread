@@ -5,6 +5,8 @@ export interface User {
   name: string;  // nickname from backend
   account?: string | null;
   email?: string | null;
+  realName?: string | null;
+  xjtluEmail?: string | null;
   avatar?: string | null;
   isGuest?: boolean;
 }

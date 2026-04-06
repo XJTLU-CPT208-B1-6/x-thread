@@ -39,6 +39,8 @@ export class AccountController {
     @Body()
     dto: {
       nickname?: string;
+      realName?: string;
+      xjtluEmail?: string;
       avatarDataUrl?: string;
       clearAvatar?: boolean;
     },

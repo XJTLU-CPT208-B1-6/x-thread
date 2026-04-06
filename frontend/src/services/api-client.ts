@@ -179,6 +179,8 @@ export const accountService = {
   },
   updateProfile: async (payload: {
     nickname?: string;
+    realName?: string;
+    xjtluEmail?: string;
     avatarDataUrl?: string;
     clearAvatar?: boolean;
   }) => {
