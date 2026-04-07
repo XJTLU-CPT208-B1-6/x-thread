@@ -3,7 +3,6 @@ import {
   InputEventKind,
   InputEventStatus,
   MessageType,
-  PetMood,
 } from '@prisma/client';
 import { RoomGateway } from '../../gateways/room.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -125,9 +124,11 @@ export class IngestionService {
         this.roomGateway.emitNodeAdded(event.roomId, node);
       }
 
+      // Update pet mood: 80 for excited (with concepts), 70 for happy (without concepts)
       const pet = await this.petService.updateMood(
         event.roomId,
-        concepts.length > 0 ? PetMood.EXCITED : PetMood.HAPPY,
+        concepts.length > 0 ? 80 : 70,
+        event.authorId ?? 'system',
       );
       this.roomGateway.emitPetUpdated(event.roomId, pet);
 

@@ -118,7 +118,7 @@ export default function AdminPage() {
             <Shield className="h-5 w-5 text-violet-400" />
             <span className="font-bold text-slate-100">Admin Panel</span>
             <span className="rounded-full bg-violet-900/60 px-2 py-0.5 text-xs font-semibold text-violet-300">
-              {user.name}
+              {user?.name ?? 'Admin'}
             </span>
           </div>
           <button

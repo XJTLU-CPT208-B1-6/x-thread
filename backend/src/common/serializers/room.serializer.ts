@@ -25,9 +25,11 @@ type RoomWithRelations = {
   pet?: {
     id: string;
     roomId: string;
+    petType: string;
     name: string;
-    mood: string;
+    mood: number;
     energy: number;
+    level: number;
     createdAt: Date;
     updatedAt: Date;
   } | null;

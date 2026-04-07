@@ -568,7 +568,7 @@ export default function DiscussPageV2() {
         </div>
 
         <div className="flex-1 min-h-0 pt-32">{renderMainPanel()}</div>
-        <PetWidget />
+        <PetWidget roomId={currentRoom?.id} />
       </main>
     </div>
   );

@@ -66,7 +66,7 @@ class SocketService {
 
     // Backend emits: pet-updated
     this.socket.on('pet-updated', (pet: any) => {
-      usePetStore.getState().setPetState(pet);
+      usePetStore.getState().setPetData(pet);
     });
 
     // Backend emits: room-updated

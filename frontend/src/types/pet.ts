@@ -1,17 +1,23 @@
-export type PetType = 'egg' | 'baby' | 'teen' | 'adult';
-export type PetMood = 'happy' | 'neutral' | 'sad' | 'sleepy' | 'excited' | 'knocking';
+export type PetType = 'cat' | 'dog';
+export type PetAnimationState = 'idle' | 'happy' | 'busy' | 'hungry' | 'reaction';
 
-export interface PetState {
+export interface PetData {
   id: string;
   roomId: string;
-  type: PetType;
+  petType: PetType;
+  name: string;
+  mood: number;
+  energy: number;
   level: number;
-  health: number;
-  mood: PetMood;
+  updatedAt: string;
 }
 
-export interface PetGrowthEvent {
-  event: string;
-  timestamp: number;
-  delta: number;
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface StateTransition {
+  state: PetAnimationState;
+  duration?: number;
 }

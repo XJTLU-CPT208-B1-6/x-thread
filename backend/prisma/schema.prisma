@@ -8,36 +8,36 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  username     String?        @unique
-  email        String?        @unique
+  id           String   @id @default(cuid())
+  username     String?  @unique
+  email        String?  @unique
   nickname     String
   realName     String?
   xjtluEmail   String?
   avatar       String?
   passwordHash String?
-  isGuest      Boolean        @default(true)
-  isAdmin      Boolean        @default(false)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  isGuest      Boolean  @default(true)
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  ownedRooms   Room[]         @relation("RoomOwner")
-  memberships  RoomMember[]
-  nodes        MindMapNode[]
-  messages     ChatMessage[]
-  inputEvents  InputEvent[]
-  aiSettings   UserAiSettings?
+  ownedRooms  Room[]          @relation("RoomOwner")
+  memberships RoomMember[]
+  nodes       MindMapNode[]
+  messages    ChatMessage[]
+  inputEvents InputEvent[]
+  aiSettings  UserAiSettings?
 }
 
 model EmailVerificationCode {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   email     String
   purpose   String
   code      String
   expiresAt DateTime
   usedAt    DateTime?
-  sentAt    DateTime @default(now())
-  createdAt DateTime @default(now())
+  sentAt    DateTime  @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([email, purpose, expiresAt])
 }
@@ -68,26 +68,26 @@ enum RoomPhase {
 }
 
 model Room {
-  id         String       @id @default(cuid())
-  code       String       @unique
+  id         String    @id @default(cuid())
+  code       String    @unique
   topic      String
-  mode       RoomMode     @default(ONSITE)
-  phase      RoomPhase    @default(LOBBY)
+  mode       RoomMode  @default(ONSITE)
+  phase      RoomPhase @default(LOBBY)
   ownerId    String
-  owner      User         @relation("RoomOwner", fields: [ownerId], references: [id])
-  maxMembers Int          @default(8)
-  isLocked   Boolean      @default(false)
-  tags       String[]     @default([])
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  owner      User      @relation("RoomOwner", fields: [ownerId], references: [id])
+  maxMembers Int       @default(8)
+  isLocked   Boolean   @default(false)
+  tags       String[]  @default([])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  members    RoomMember[]
-  agenda     AgendaItem[]
-  nodes      MindMapNode[]
-  edges      MindMapEdge[]
-  messages   ChatMessage[]
-  pet        Pet?
-  inputs     InputEvent[]
+  members  RoomMember[]
+  agenda   AgendaItem[]
+  nodes    MindMapNode[]
+  edges    MindMapEdge[]
+  messages ChatMessage[]
+  pet      Pet?
+  inputs   InputEvent[]
 }
 
 enum RoomMemberRole {
@@ -103,16 +103,16 @@ enum MemberPresenceStatus {
 }
 
 model RoomMember {
-  id          String               @id @default(cuid())
-  roomId      String
-  room        Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User                 @relation(fields: [userId], references: [id])
-  role        RoomMemberRole       @default(MEMBER)
-  status      MemberPresenceStatus @default(ACTIVE)
-  joinedAt    DateTime             @default(now())
-  lastSeenAt  DateTime             @default(now())
-  leftAt      DateTime?
+  id         String               @id @default(cuid())
+  roomId     String
+  room       Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                 @relation(fields: [userId], references: [id])
+  role       RoomMemberRole       @default(MEMBER)
+  status     MemberPresenceStatus @default(ACTIVE)
+  joinedAt   DateTime             @default(now())
+  lastSeenAt DateTime             @default(now())
+  leftAt     DateTime?
 
   @@unique([roomId, userId])
 }
@@ -135,31 +135,31 @@ enum NodeType {
 }
 
 model MindMapNode {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   roomId    String
-  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User        @relation(fields: [authorId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
   label     String
-  type      NodeType    @default(IDEA)
-  posX      Float       @default(0)
-  posY      Float       @default(0)
-  createdAt DateTime    @default(now())
+  type      NodeType @default(IDEA)
+  posX      Float    @default(0)
+  posY      Float    @default(0)
+  createdAt DateTime @default(now())
 
   sourceEdges MindMapEdge[] @relation("EdgeSource")
   targetEdges MindMapEdge[] @relation("EdgeTarget")
 }
 
 model MindMapEdge {
-  id       String      @id @default(cuid())
-  roomId   String
-  room     Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  sourceId String
-  source   MindMapNode @relation("EdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
-  targetId String
-  target   MindMapNode @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
-  label    String?
-  createdAt DateTime   @default(now())
+  id        String      @id @default(cuid())
+  roomId    String
+  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sourceId  String
+  source    MindMapNode @relation("EdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId  String
+  target    MindMapNode @relation("EdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  label     String?
+  createdAt DateTime    @default(now())
 }
 
 enum MessageType {
@@ -179,22 +179,20 @@ model ChatMessage {
   createdAt DateTime    @default(now())
 }
 
-enum PetMood {
-  HAPPY
-  NEUTRAL
-  SLEEPY
-  EXCITED
-}
-
 model Pet {
   id        String   @id @default(cuid())
   roomId    String   @unique
-  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  name      String   @default("Buddy")
-  mood      PetMood  @default(NEUTRAL)
-  energy    Int      @default(100)
+  petType   String   @default("cat") // 'cat' | 'dog'
+  name      String   @default("Pet")
+  mood      Int      @default(50) // 0-100
+  energy    Int      @default(100) // 0-100
+  level     Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
 }
 
 enum InputEventKind {
@@ -213,17 +211,17 @@ enum InputEventStatus {
 
 model InputEvent {
   id           String           @id @default(cuid())
-  roomId        String
-  room          Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  authorId      String?
-  author        User?            @relation(fields: [authorId], references: [id])
-  kind          InputEventKind   @default(TEXT)
-  content       String
-  source        String?
-  metadata      Json?
-  status        InputEventStatus @default(ACCEPTED)
-  errorMessage  String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  processedAt   DateTime?
+  roomId       String
+  room         Room             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId     String?
+  author       User?            @relation(fields: [authorId], references: [id])
+  kind         InputEventKind   @default(TEXT)
+  content      String
+  source       String?
+  metadata     Json?
+  status       InputEventStatus @default(ACCEPTED)
+  errorMessage String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  processedAt  DateTime?
 }

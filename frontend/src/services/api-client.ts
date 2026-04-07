@@ -462,6 +462,42 @@ export const sharedFileService = {
   },
 };
 
+export type PetData = {
+  id: string;
+  roomId: string;
+  petType: 'cat' | 'dog';
+  name: string;
+  mood: number;
+  energy: number;
+  level: number;
+  updatedAt: string;
+};
+
+export type FeedResult = {
+  pet: PetData;
+  energyGained: number;
+  message: string;
+};
+
+export const petService = {
+  getPet: async (roomId: string) => {
+    const response = await api.get(`/rooms/${roomId}/pet`);
+    return response.data as PetData;
+  },
+  updateMood: async (roomId: string, mood: number) => {
+    const response = await api.patch(`/rooms/${roomId}/pet/mood`, { mood });
+    return response.data as PetData;
+  },
+  feedPet: async (roomId: string) => {
+    const response = await api.post(`/rooms/${roomId}/pet/feed`);
+    return response.data as FeedResult;
+  },
+  changePetType: async (roomId: string, petType: 'cat' | 'dog') => {
+    const response = await api.patch(`/rooms/${roomId}/pet/type`, { petType });
+    return response.data as PetData;
+  },
+};
+
 export default api;
 
 export const adminService = {

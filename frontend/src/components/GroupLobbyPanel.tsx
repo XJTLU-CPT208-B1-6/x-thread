@@ -5,6 +5,7 @@ import { socketService } from '../services/socket-service';
 import { useRoomStore } from '../stores/useRoomStore';
 import { useUserStore } from '../stores/useUserStore';
 import { resolveRoomPathFromPhase } from '../utils/roomUtils';
+import { useT } from '../lib/i18n';
 
 const VIBE_TAGS = ['认真学习 📚', '佛系摸鱼 🐟', '赶DDL 🔥', '头脑风暴 💡', '互相监督 👀', '随便聊聊 💬'];
 const COURSE_TAGS = ['高数', '英语', '编程', '物理', '经济', '设计'];
@@ -34,16 +35,20 @@ type LobbyRoom = {
 
 // ── Room Card ──────────────────────────────────────────────────────────────
 function RoomCard({
-  room, userId, joining, locking, onJoin, onToggleLock, highlight = false,
+  room, userId, joining, locking, onJoin, onToggleLock, highlight = false, t,
 }: {
   room: LobbyRoom; userId?: string; joining: boolean; locking: boolean;
   onJoin: () => void; onToggleLock: () => void; highlight?: boolean;
+  t: ReturnType<typeof useT>;
 }) {
   const isOwner = room.members.some((m) => m.userId === userId && m.role === 'OWNER');
   const isMember = room.members.some((m) => m.userId === userId);
   const isFull = room.members.length >= room.maxMembers;
   const phaseLabel: Record<string, string> = {
-    LOBBY: '大厅等待中', ICEBREAK: '破冰进行中', DISCUSS: '讨论进行中', REVIEW: '复盘中',
+    LOBBY: t('lobby.phase.lobby'),
+    ICEBREAK: t('lobby.phase.icebreak'),
+    DISCUSS: t('lobby.phase.discuss'),
+    REVIEW: t('lobby.phase.review'),
   };
 
   return (
@@ -52,7 +57,7 @@ function RoomCard({
     }`}>
       <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-bold ${room.isLocked ? 'text-slate-400' : 'text-emerald-600'}`}>
-          {room.isLocked ? '🔒 已锁定' : '🟢 开放中'}
+          {room.isLocked ? t('lobby.locked') : t('lobby.open')}
         </span>
         <span className="text-xs text-slate-400">{phaseLabel[room.phase] ?? room.phase}</span>
       </div>
@@ -77,8 +82,8 @@ function RoomCard({
           ))}
         </div>
         <span className="text-xs text-slate-500">
-          {room.members.length}/{room.maxMembers} 人
-          {isFull && !isMember && <span className="ml-1 text-rose-400 font-semibold">· 已满</span>}
+          {room.members.length}/{room.maxMembers}{t('lobby.people')}
+          {isFull && !isMember && <span className="ml-1 text-rose-400 font-semibold">{t('lobby.full')}</span>}
         </span>
         <span className="ml-auto text-[10px] font-mono text-slate-300">{room.code}</span>
       </div>
@@ -86,21 +91,21 @@ function RoomCard({
         {isMember ? (
           <button type="button" onClick={onJoin} disabled={joining}
             className="flex-1 rounded-xl bg-violet-600 py-2 text-xs font-bold text-white transition hover:bg-violet-700 disabled:opacity-50">
-            {joining ? '进入中...' : '🚪 回到房间'}
+            {joining ? t('lobby.entering') : t('lobby.backToRoom')}
           </button>
         ) : room.isLocked ? (
-          <div className="flex-1 rounded-xl bg-slate-100 py-2 text-center text-xs font-semibold text-slate-400">🔒 房间已锁</div>
+          <div className="flex-1 rounded-xl bg-slate-100 py-2 text-center text-xs font-semibold text-slate-400">{t('lobby.roomLocked')}</div>
         ) : isFull ? (
-          <div className="flex-1 rounded-xl bg-slate-100 py-2 text-center text-xs font-semibold text-slate-400">😅 人满了</div>
+          <div className="flex-1 rounded-xl bg-slate-100 py-2 text-center text-xs font-semibold text-slate-400">{t('lobby.roomFull')}</div>
         ) : (
           <button type="button" onClick={onJoin} disabled={joining}
             className="flex-1 rounded-xl bg-violet-600 py-2 text-xs font-bold text-white transition hover:bg-violet-700 disabled:opacity-50">
-            {joining ? '加入中...' : '👋 加入'}
+            {joining ? t('lobby.joining') : t('lobby.join')}
           </button>
         )}
         {isOwner && (
           <button type="button" onClick={onToggleLock} disabled={locking}
-            title={room.isLocked ? '解锁房间' : '锁定房间'}
+            title={room.isLocked ? t('myRoom.unlocked') : t('myRoom.locked')}
             className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 disabled:opacity-50">
             {locking ? '...' : room.isLocked ? '🔓' : '🔒'}
           </button>
@@ -114,6 +119,7 @@ export function GroupLobbyPanel() {
   const navigate = useNavigate();
   const { setRoom } = useRoomStore();
   const { user } = useUserStore();
+  const t = useT();
 
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,7 +166,7 @@ export function GroupLobbyPanel() {
       const result = await roomService.joinRoom(room.code);
       setRoom(result.room);
       navigate(resolveRoomPathFromPhase(result.room.code, result.room.phase));
-    } catch (e: any) { alert(e?.response?.data?.message ?? '加入失败，请重试'); }
+    } catch (e: any) { alert(e?.response?.data?.message ?? t('lobby.joinFailed')); }
     finally { setJoining(null); }
   };
 
@@ -168,12 +174,12 @@ export function GroupLobbyPanel() {
     if (locking) return;
     setLocking(room.id);
     try { await roomService.toggleLock(room.id); await fetchRooms(); }
-    catch (e: any) { alert(e?.response?.data?.message ?? '操作失败'); }
+    catch (e: any) { alert(e?.response?.data?.message ?? t('lobby.lockFailed')); }
     finally { setLocking(null); }
   };
 
   const handleCreate = async () => {
-    if (!createForm.topic.trim()) { setCreateError('请输入讨论主题'); return; }
+    if (!createForm.topic.trim()) { setCreateError(t('lobby.modal.topicRequired')); return; }
     setCreating(true); setCreateError('');
     try {
       const result = await roomService.createRoom({
@@ -181,7 +187,7 @@ export function GroupLobbyPanel() {
       });
       setRoom(result.room);
       navigate(resolveRoomPathFromPhase(result.room.code, result.room.phase));
-    } catch (e: any) { setCreateError(e?.response?.data?.message ?? '创建失败'); }
+    } catch (e: any) { setCreateError(e?.response?.data?.message ?? t('lobby.modal.createFailed')); }
     finally { setCreating(false); }
   };
 
@@ -213,13 +219,13 @@ export function GroupLobbyPanel() {
       {/* Hero */}
       <div className="rounded-2xl bg-gradient-to-r from-violet-500 to-blue-500 p-5 text-white shadow-sm flex items-center justify-between">
         <div>
-          <p className="text-lg font-black mb-0.5">🎮 组队大厅</p>
-          <p className="text-xs text-white/75">入座即聊，自由来去 · 不用等人满 · 随时加入随时离开</p>
+          <p className="text-lg font-black mb-0.5">{t('lobby.title')}</p>
+          <p className="text-xs text-white/75">{t('lobby.subtitle')}</p>
         </div>
         <div className="flex gap-2 shrink-0">
           <button type="button" onClick={() => setShowCreate(true)}
             className="rounded-xl bg-white/20 hover:bg-white/30 px-4 py-2 text-sm font-bold text-white transition backdrop-blur-sm">
-            ✨ 开个房间
+            {t('lobby.createBtn')}
           </button>
           <button type="button" onClick={() => void fetchRooms()}
             className="rounded-xl bg-white/10 hover:bg-white/20 px-3 py-2 text-sm text-white transition">
@@ -231,7 +237,7 @@ export function GroupLobbyPanel() {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 搜索主题或房间号..."
+          placeholder={t('lobby.search')}
           className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 w-44"
         />
         {VIBE_TAGS.map((tag) => (
@@ -248,17 +254,17 @@ export function GroupLobbyPanel() {
         ))}
         {(filterVibe || filterCourse || search) && (
           <button type="button" onClick={() => { setFilterVibe(null); setFilterCourse(null); setSearch(''); }}
-            className="text-xs text-slate-400 hover:text-slate-600 underline">清除</button>
+            className="text-xs text-slate-400 hover:text-slate-600 underline">{t('lobby.clearFilter')}</button>
         )}
       </div>
 
-      {/* My rooms */}
+      {/* My rooms (member, not owner) */}
       {myRooms.length > 0 && (
         <div>
-          <p className="text-xs font-bold text-slate-500 mb-2">📌 我在里面的房间</p>
+          <p className="text-xs font-bold text-slate-500 mb-2">{t('lobby.myRooms')}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {myRooms.map((room) => (
-              <RoomCard key={room.id} room={room} userId={user?.id}
+              <RoomCard key={room.id} room={room} userId={user?.id} t={t}
                 joining={joining === room.id} locking={locking === room.id}
                 onJoin={() => void handleJoin(room)} onToggleLock={() => void handleToggleLock(room)} highlight />
             ))}
@@ -269,7 +275,7 @@ export function GroupLobbyPanel() {
       {/* All rooms */}
       <div>
         <p className="text-xs font-bold text-slate-500 mb-2">
-          🏠 所有开放房间{filtered.length > 0 && <span className="text-slate-400 font-normal ml-1">({filtered.length})</span>}
+          {t('lobby.allRooms')}{filtered.length > 0 && <span className="text-slate-400 font-normal ml-1">({filtered.length})</span>}
         </p>
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -278,16 +284,16 @@ export function GroupLobbyPanel() {
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-slate-200 py-12 text-center">
             <p className="text-3xl mb-2">🌵</p>
-            <p className="text-slate-500 text-sm font-semibold">暂时没有符合条件的房间</p>
+            <p className="text-slate-500 text-sm font-semibold">{t('lobby.empty')}</p>
             <button type="button" onClick={() => setShowCreate(true)}
               className="mt-3 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700">
-              ✨ 开个房间
+              {t('lobby.createFirst')}
             </button>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {filtered.map((room) => (
-              <RoomCard key={room.id} room={room} userId={user?.id}
+              <RoomCard key={room.id} room={room} userId={user?.id} t={t}
                 joining={joining === room.id} locking={locking === room.id}
                 onJoin={() => void handleJoin(room)} onToggleLock={() => void handleToggleLock(room)} />
             ))}
@@ -301,18 +307,18 @@ export function GroupLobbyPanel() {
           onClick={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-black text-slate-800">✨ 开个新房间</h2>
+              <h2 className="text-lg font-black text-slate-800">{t('lobby.modal.title')}</h2>
               <button type="button" onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">×</button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">讨论主题 *</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('lobby.modal.topic')}</label>
                 <input value={createForm.topic} onChange={(e) => setCreateForm((f) => ({ ...f, topic: e.target.value }))}
-                  placeholder="例如：高数期末复习、毕设头脑风暴..."
+                  placeholder={t('lobby.modal.topicPlaceholder')}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">人数上限</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('lobby.modal.maxMembers')}</label>
                 <div className="flex gap-2">
                   {[2, 4, 6, 8, 10].map((n) => (
                     <button key={n} type="button" onClick={() => setCreateForm((f) => ({ ...f, maxMembers: n }))}
@@ -323,7 +329,7 @@ export function GroupLobbyPanel() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">氛围标签（可多选）</label>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('lobby.modal.tags')}</label>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {[...VIBE_TAGS, ...COURSE_TAGS].map((tag) => (
                     <button key={tag} type="button" onClick={() => toggleTag(tag)}
@@ -331,28 +337,21 @@ export function GroupLobbyPanel() {
                         createForm.selectedTags.includes(tag) ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-violet-300'
                       }`}>{tag}</button>
                   ))}
-                  {/* Custom tags already added */}
-                  {createForm.selectedTags.filter((t) => !VIBE_TAGS.includes(t) && !COURSE_TAGS.includes(t)).map((tag) => (
+                  {createForm.selectedTags.filter((t2) => !VIBE_TAGS.includes(t2) && !COURSE_TAGS.includes(t2)).map((tag) => (
                     <button key={tag} type="button" onClick={() => toggleTag(tag)}
                       className="rounded-full px-3 py-1 text-xs font-semibold border bg-violet-600 text-white border-violet-600 flex items-center gap-1">
                       {tag} <span className="opacity-70">×</span>
                     </button>
                   ))}
                 </div>
-                {/* Custom tag input */}
                 <div className="flex gap-2">
-                  <input
-                    value={customTagInput}
-                    onChange={(e) => setCustomTagInput(e.target.value)}
+                  <input value={customTagInput} onChange={(e) => setCustomTagInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
-                    placeholder="自定义课程/主题，回车添加"
-                    maxLength={12}
-                    className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-                  />
-                  <button type="button" onClick={addCustomTag}
-                    disabled={!customTagInput.trim()}
+                    placeholder={t('lobby.modal.customTagPlaceholder')} maxLength={12}
+                    className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+                  <button type="button" onClick={addCustomTag} disabled={!customTagInput.trim()}
                     className="rounded-xl border border-violet-300 px-3 py-1.5 text-xs font-semibold text-violet-600 hover:bg-violet-50 disabled:opacity-40">
-                    + 添加
+                    {t('lobby.modal.addTag')}
                   </button>
                 </div>
               </div>
@@ -361,7 +360,7 @@ export function GroupLobbyPanel() {
               )}
               <button type="button" onClick={() => void handleCreate()} disabled={creating}
                 className="w-full rounded-xl bg-violet-600 py-3 text-sm font-bold text-white transition hover:bg-violet-700 disabled:opacity-50">
-                {creating ? '创建中...' : '🚀 立即开房，入座即聊！'}
+                {creating ? t('lobby.modal.submitting') : t('lobby.modal.submit')}
               </button>
             </div>
           </div>

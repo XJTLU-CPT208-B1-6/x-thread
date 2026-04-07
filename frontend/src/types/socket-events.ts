@@ -1,5 +1,4 @@
 import { MindMapNode, MindMapEdge } from './mindmap';
-import { PetState } from './pet';
 
 export interface ChatMessage {
   id: string;

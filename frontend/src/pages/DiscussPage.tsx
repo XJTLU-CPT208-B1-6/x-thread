@@ -349,7 +349,7 @@ export default function DiscussPage() {
         </div>
 
         <VoicePanel />
-        <PetWidget />
+        <PetWidget roomId={currentRoom?.id} />
       </div>
     </div>
   );

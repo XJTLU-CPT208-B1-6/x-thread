@@ -187,6 +187,7 @@ function MyRoomEditor({
   onNavigate: (path: string) => void;
   onRefresh: () => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -222,7 +223,7 @@ function MyRoomEditor({
   };
 
   const handleSave = async () => {
-    if (!form.topic.trim()) { setSaveError('主题不能为空'); return; }
+    if (!form.topic.trim()) { setSaveError(t('myRoom.topicEmpty')); return; }
     setSaving(true); setSaveError('');
     try {
       await roomService.updateRoom(fullRoom?.id ?? '', {
@@ -241,7 +242,11 @@ function MyRoomEditor({
   };
 
   const phaseLabelMap: Record<string, string> = {
-    LOBBY: '准备中', ICEBREAK: '破冰', DISCUSS: '讨论中', REVIEW: '复盘', CLOSED: '已结束',
+    LOBBY: t('lobby.phase.lobby'),
+    ICEBREAK: t('lobby.phase.icebreak'),
+    DISCUSS: t('lobby.phase.discuss'),
+    REVIEW: t('lobby.phase.review'),
+    CLOSED: 'Closed',
   };
 
   return (
@@ -263,33 +268,33 @@ function MyRoomEditor({
               editing ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
             }`}
           >
-            {editing ? '取消' : '✏️ 编辑'}
+            {editing ? t('myRoom.cancel') : t('myRoom.edit')}
           </button>
           <button
             type="button"
             onClick={() => onNavigate(resolveRoomPathFromPhase(room.code, room.phase))}
             className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-700"
           >
-            进入房间
+            {t('myRoom.enter')}
           </button>
         </div>
       </div>
 
       <div className="text-xs text-blue-800/60 mb-3">
-        {room.memberCount}/{room.maxMembers} 人 · {room.mode === 'REMOTE' ? '远程' : '线下'}
+        {room.memberCount}/{room.maxMembers} {t('lobby.people')} · {room.mode === 'REMOTE' ? 'Remote' : 'On-site'}
       </div>
 
       {/* Edit form */}
       {editing && (
         <div className="border-t border-slate-100 pt-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">讨论主题</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('myRoom.topic')}</label>
             <input value={form.topic} onChange={(e) => setForm((f) => ({ ...f, topic: e.target.value }))}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">人数上限</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('myRoom.maxMembers')}</label>
             <div className="flex gap-2">
               {[2, 4, 6, 8, 10].map((n) => (
                 <button key={n} type="button" onClick={() => setForm((f) => ({ ...f, maxMembers: n }))}
@@ -301,17 +306,17 @@ function MyRoomEditor({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">锁定状态</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('myRoom.lockStatus')}</label>
             <button type="button" onClick={() => setForm((f) => ({ ...f, isLocked: !f.isLocked }))}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition border ${
                 form.isLocked ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
               }`}>
-              {form.isLocked ? '🔒 已锁定（点击解锁）' : '🟢 开放中（点击锁定）'}
+              {form.isLocked ? t('myRoom.locked') : t('myRoom.unlocked')}
             </button>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">标签</label>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{t('myRoom.tags')}</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {[...VIBE_TAGS_EDITOR, ...COURSE_TAGS_EDITOR].map((tag) => (
                 <button key={tag} type="button" onClick={() => toggleTag(tag)}
@@ -319,7 +324,7 @@ function MyRoomEditor({
                     form.tags.includes(tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
                   }`}>{tag}</button>
               ))}
-              {form.tags.filter((t) => !VIBE_TAGS_EDITOR.includes(t) && !COURSE_TAGS_EDITOR.includes(t)).map((tag) => (
+              {form.tags.filter((t2) => !VIBE_TAGS_EDITOR.includes(t2) && !COURSE_TAGS_EDITOR.includes(t2)).map((tag) => (
                 <button key={tag} type="button" onClick={() => toggleTag(tag)}
                   className="rounded-full px-2.5 py-1 text-xs font-semibold border bg-blue-600 text-white border-blue-600">
                   {tag} ×
@@ -329,11 +334,11 @@ function MyRoomEditor({
             <div className="flex gap-2">
               <input value={customTag} onChange={(e) => setCustomTag(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
-                placeholder="自定义标签，回车添加" maxLength={12}
+                placeholder={t('myRoom.customTag.placeholder')} maxLength={12}
                 className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
               <button type="button" onClick={addCustomTag} disabled={!customTag.trim()}
                 className="rounded-xl border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:opacity-40">
-                + 添加
+                {t('myRoom.customTag.add')}
               </button>
             </div>
           </div>
@@ -344,7 +349,7 @@ function MyRoomEditor({
 
           <button type="button" onClick={() => void handleSave()} disabled={saving}
             className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">
-            {saving ? '保存中...' : '保存修改'}
+            {saving ? t('myRoom.saving') : t('myRoom.save')}
           </button>
         </div>
       )}
@@ -1324,20 +1329,20 @@ export default function HomeWorkspacePage() {
 
     return (
       <DashboardCard
-        eyebrow="My Rooms"
-        title="我的房间"
-        description="你是房主的房间。可以在这里修改房间属性，只有房主才能修改。"
+        eyebrow={t('myRoom.eyebrow')}
+        title={t('myRoom.title')}
+        description={t('myRoom.desc')}
         action={
           <button type="button" onClick={() => void refreshAccountData()}
             className="inline-flex items-center gap-2 rounded-2xl border border-blue-200 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50">
-            <RefreshCw className="h-4 w-4" />刷新
+            <RefreshCw className="h-4 w-4" />{t('myRoom.refresh')}
           </button>
         }
       >
         <div className="space-y-4">
           {myOwnedRooms.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-blue-200 px-4 py-8 text-center text-sm text-blue-500">
-              你目前没有作为房主的活跃房间。
+              {t('myRoom.empty')}
             </div>
           ) : (
             myOwnedRooms.map((room) => (
@@ -1418,7 +1423,7 @@ export default function HomeWorkspacePage() {
   > = {
     home: { label: t('section.home'), description: t('section.home.desc'), icon: Home },
     'current-room': { label: t('section.currentRoom'), description: t('section.currentRoom.desc'), icon: DoorOpen },
-    'my-room': { label: '我的房间', description: '管理你创建的房间，修改主题、标签、人数和锁定状态。', icon: Settings2 },
+    'my-room': { label: t('myRoom.title'), description: t('myRoom.desc'), icon: Settings2 },
     'join-room': { label: t('section.joinRoom'), description: t('section.joinRoom.desc'), icon: Users },
     'create-room': { label: t('section.createRoom'), description: t('section.createRoom.desc'), icon: PlusCircle },
     'group-lobby': { label: '组队大厅', description: '找队友，开房间，入座即聊。', icon: Gamepad2 },
@@ -1575,7 +1580,7 @@ export default function HomeWorkspacePage() {
       items: [
         { id: 'home', label: t('nav.home'), icon: Home },
         { id: 'current-room', label: t('nav.currentRoom'), icon: DoorOpen, count: overview?.activeRooms.length ?? 0 },
-        { id: 'my-room', label: '我的房间', icon: Settings2, count: overview?.activeRooms.filter((r) => r.role === 'OWNER').length ?? 0 },
+        { id: 'my-room', label: t('myRoom.title'), icon: Settings2, count: overview?.activeRooms.filter((r) => r.role === 'OWNER').length ?? 0 },
         { id: 'join-room', label: t('nav.joinRoom'), icon: Users },
         { id: 'create-room', label: t('nav.createRoom'), icon: PlusCircle },
         { id: 'group-lobby', label: '组队大厅 🎮', icon: Gamepad2 },
