@@ -5,7 +5,7 @@ import { saveAiSettings } from './lib/ai-settings';
 import HomeWorkspacePage from './pages/HomeWorkspacePage';
 import GroupLobbyPage from './pages/GroupLobbyPage';
 import AdminPage from './pages/AdminPage';
-import LobbyPageV2 from './pages/LobbyPageV2';
+import LobbyPageV2 from './pages/LobbyPageV2Active';
 import IceBreakPage from './pages/IceBreakPage';
 import DiscussPageV2 from './pages/DiscussPageV2';
 import ReviewPage from './pages/ReviewPage';
@@ -26,10 +26,7 @@ export default function App() {
       }
 
       try {
-        const [{ user }, settings] = await Promise.all([
-          authService.getMe(),
-          accountService.getAiSettings(),
-        ]);
+        const { user } = await authService.getMe();
 
         if (cancelled) {
           return;
@@ -41,7 +38,14 @@ export default function App() {
         }
 
         syncUserFromProfile(user);
-        saveAiSettings(settings);
+        void accountService
+          .getAiSettings()
+          .then((settings) => {
+            if (!cancelled) {
+              saveAiSettings(settings);
+            }
+          })
+          .catch(() => undefined);
       } catch {
         if (!cancelled) {
           clearAuthSession();

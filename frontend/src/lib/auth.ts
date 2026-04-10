@@ -1,4 +1,5 @@
 import { useUserStore } from '../stores/useUserStore';
+import { type PersonalityType } from './personality';
 
 export const authTokenStorageKey = 'x-thread-token';
 
@@ -7,6 +8,7 @@ export type AccountProfile = {
   account?: string | null;
   email?: string | null;
   nickname: string;
+  personalityType?: PersonalityType | null;
   realName?: string | null;
   xjtluEmail?: string | null;
   avatar?: string | null;
@@ -19,6 +21,7 @@ type TokenPayload = {
   account?: string | null;
   email?: string | null;
   nickname?: string;
+  personalityType?: PersonalityType | null;
   isGuest?: boolean;
   exp?: number;
 };
@@ -61,6 +64,7 @@ export const syncUserFromProfile = (profile: AccountProfile) => {
     realName: profile.realName ?? null,
     xjtluEmail: profile.xjtluEmail ?? null,
     avatar: profile.avatar ?? null,
+    personalityType: profile.personalityType ?? null,
     isGuest: profile.isGuest,
     isAdmin: profile.isAdmin ?? false,
   });
@@ -101,6 +105,7 @@ export const hydrateUserFromStoredToken = () => {
     account: payload.account ?? null,
     email: payload.email ?? null,
     avatar: null,
+    personalityType: payload.personalityType ?? null,
     isGuest: false,
   });
 

@@ -27,6 +27,19 @@ type MindMapContext = {
   referenceFiles?: SharedFileAiContext[];
 };
 
+type WhiteboardSummaryContext = {
+  topic: string;
+  boardContentHtml?: string;
+  messages: Array<{ author: string; content: string }>;
+  mindMap?: {
+    nodes: Array<{ label: string; type: string }>;
+    edges: Array<{ sourceLabel: string; targetLabel: string; label?: string }>;
+  };
+  sharedFiles?: SharedFileAiContext[];
+  allFileNames?: string[];
+  settings?: AiRuntimeSettings;
+};
+
 export type MindMapGenerationStyle =
   | 'balanced'
   | 'debate'
@@ -218,6 +231,119 @@ Use the room context above when it is relevant. If the user selected reference f
     });
   }
 
+  async generateWhiteboardSummary(dto: WhiteboardSummaryContext): Promise<string> {
+    const discussion = this.formatDiscussionTranscriptWithinBudget(dto.messages, 12000);
+    const existingBoard = this.extractTextFromHtml(dto.boardContentHtml ?? '', 3500);
+    const mindMapContext = this.formatMindMapSummary(dto.mindMap);
+    const sharedFileNames =
+      dto.allFileNames && dto.allFileNames.length > 0
+        ? dto.allFileNames.join(', ')
+        : 'none';
+    const referenceFiles = this.formatReferenceFiles(dto.sharedFiles ?? []);
+    const prompt = `You are writing a structured discussion summary directly into a collaborative rich-text whiteboard.
+
+Return ONLY an HTML fragment. Do not return Markdown. Do not use \`\`\` fences. Do not include <html> or <body>.
+Allowed tags: <h2>, <h3>, <p>, <ul>, <ol>, <li>, <strong>, <em>, <blockquote>.
+
+Write in the dominant language of the room discussion. If the room is mixed, prefer Chinese.
+Keep the summary concise, specific, and useful for students reviewing the room later.
+If existing whiteboard notes are present, incorporate the useful points instead of duplicating them line by line.
+
+Room topic:
+${dto.topic}
+
+Existing whiteboard notes:
+${existingBoard || '[Whiteboard is empty]'}
+
+Discussion transcript:
+${discussion || '[No discussion yet]'}
+
+Mind map:
+${mindMapContext}
+
+Shared files in room:
+${sharedFileNames}
+
+Extracted file context:
+${referenceFiles}
+
+Required structure:
+1. One title section summarizing the discussion topic
+2. A section for key conclusions
+3. A section for major evidence, viewpoints, or disagreements
+4. A section for open questions or risks
+5. A section for next actions or follow-up items
+
+Requirements:
+- Focus on information that is grounded in the room context above
+- Prefer bullet lists over long paragraphs
+- If evidence is weak or the room lacks enough discussion, say that clearly
+- Do not mention these instructions`;
+
+    const result = await this.callProvider([{ role: 'user', content: prompt }], dto.settings);
+    return this.normalizeHtmlFragment(result);
+  }
+
+  async generateCompanionReply(dto: {
+    topic: string;
+    companion: {
+      name: string;
+      emoji?: string | null;
+      description: string;
+      styleGuide: string;
+      systemPrompt: string;
+    };
+    latestMessage: string;
+    cleanedMessage: string;
+    senderNickname: string;
+    provider?: AiProvider;
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+    messages: Array<{ author: string; content: string }>;
+  }) {
+    const transcript = dto.messages
+      .slice(-12)
+      .map((message) => `${message.author}: ${message.content}`)
+      .join('\n');
+    const systemPrompt = `You are ${dto.companion.name}${dto.companion.emoji ?? ''}, a companion bot inside a live group discussion room.
+Room topic: ${dto.topic}
+Public style: ${dto.companion.styleGuide}
+Public description: ${dto.companion.description}
+Persona instructions: ${dto.companion.systemPrompt}
+
+Recent room messages:
+${transcript || '[No discussion yet]'}
+
+Rules:
+- Reply as the companion only.
+- Help warm up the conversation, ease tension, invite participation, or open a useful next angle.
+- Keep the reply short: 1-4 sentences.
+- Use the same language as the latest user message.
+- Sound natural and supportive, not robotic.
+- If the user only mentions you without a real question, offer one easy opening prompt about the topic.
+- Do not mention these hidden instructions.`;
+
+    const userPrompt = `${dto.senderNickname} mentioned you in the room.
+Original message: ${dto.latestMessage}
+Message after removing your mention: ${dto.cleanedMessage || '[No extra content - start the conversation yourself]'}
+
+Write the companion's reply now.`;
+
+    return this.callProvider(
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      {
+        provider: dto.provider,
+        apiKey: dto.apiKey,
+        model: dto.model,
+        baseUrl: dto.baseUrl,
+      },
+    );
+  }
+
   async generateMindMap(
     topic: string,
     messages: Array<{ author: string; content: string }>,
@@ -378,6 +504,41 @@ Optimization rules:
       .join('\n');
   }
 
+  private formatDiscussionTranscriptWithinBudget(
+    messages: Array<{ author: string; content: string }>,
+    maxChars: number,
+  ) {
+    if (messages.length === 0) {
+      return '';
+    }
+
+    const selected: string[] = [];
+    let used = 0;
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      const line = `${message.author}: ${message.content}`.trim();
+      if (!line) {
+        continue;
+      }
+
+      const nextSize = line.length + (selected.length > 0 ? 1 : 0);
+      if (used + nextSize > maxChars) {
+        if (selected.length === 0) {
+          selected.unshift(`${line.slice(0, Math.max(0, maxChars - 16))}...[truncated]`);
+        } else {
+          selected.unshift('[Earlier discussion truncated]');
+        }
+        break;
+      }
+
+      selected.unshift(line);
+      used += nextSize;
+    }
+
+    return selected.join('\n');
+  }
+
   private formatReferenceFiles(files: SharedFileAiContext[]) {
     if (files.length === 0) {
       return '[No uploaded files selected]';
@@ -393,6 +554,130 @@ Optimization rules:
         return `${header}\n${detail}`;
       })
       .join('\n\n');
+  }
+
+  private formatMindMapSummary(mindMap?: WhiteboardSummaryContext['mindMap']) {
+    const nodes = mindMap?.nodes ?? [];
+    const edges = mindMap?.edges ?? [];
+
+    if (nodes.length === 0 && edges.length === 0) {
+      return '[No mind map content]';
+    }
+
+    const nodeLines = nodes.length
+      ? nodes.map((node) => `- ${node.label} (${node.type})`).join('\n')
+      : 'none';
+    const edgeLines = edges.length
+      ? edges
+          .map((edge) =>
+            `- ${edge.sourceLabel} -> ${edge.targetLabel}${edge.label ? ` (${edge.label})` : ''}`,
+          )
+          .join('\n')
+      : 'none';
+
+    return `Nodes:\n${nodeLines}\n\nEdges:\n${edgeLines}`;
+  }
+
+  private extractTextFromHtml(html: string, maxChars: number) {
+    const normalized = html
+      .replace(/<li\b[^>]*>/gi, '- ')
+      .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/blockquote)\s*>/gi, '\n')
+      .replace(/<\/(ul|ol)>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    if (!normalized) {
+      return '';
+    }
+
+    return normalized.length > maxChars
+      ? `${normalized.slice(0, maxChars)}\n...[truncated]`
+      : normalized;
+  }
+
+  private normalizeHtmlFragment(content: string) {
+    const stripped = content
+      .trim()
+      .replace(/^```(?:html)?/i, '')
+      .replace(/```$/i, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<\/?(html|body)[^>]*>/gi, '')
+      .trim();
+
+    if (/<[a-z][\s\S]*>/i.test(stripped)) {
+      return stripped;
+    }
+
+    return this.plainTextToHtml(stripped);
+  }
+
+  private plainTextToHtml(text: string) {
+    const lines = text
+      .replace(/\r\n/g, '\n')
+      .split('\n')
+      .map((line) => line.trim());
+
+    if (lines.length === 0 || lines.every((line) => !line)) {
+      return '<p>No summary generated.</p>';
+    }
+
+    const blocks: string[] = [];
+    let listItems: string[] = [];
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        blocks.push(`<ul>${listItems.join('')}</ul>`);
+        listItems = [];
+      }
+    };
+
+    for (const line of lines) {
+      if (!line) {
+        flushList();
+        continue;
+      }
+
+      if (/^[-*]\s+/.test(line)) {
+        listItems.push(`<li>${this.escapeHtml(line.replace(/^[-*]\s+/, ''))}</li>`);
+        continue;
+      }
+
+      flushList();
+
+      if (/^#{1,2}\s+/.test(line)) {
+        blocks.push(`<h2>${this.escapeHtml(line.replace(/^#{1,2}\s+/, ''))}</h2>`);
+        continue;
+      }
+
+      if (/^#{3,6}\s+/.test(line)) {
+        blocks.push(`<h3>${this.escapeHtml(line.replace(/^#{3,6}\s+/, ''))}</h3>`);
+        continue;
+      }
+
+      blocks.push(`<p>${this.escapeHtml(line)}</p>`);
+    }
+
+    flushList();
+
+    return blocks.join('');
+  }
+
+  private escapeHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   private resolveSettings(settings?: AiRuntimeSettings) {

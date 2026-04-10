@@ -9,6 +9,21 @@ Write-Host ""
 # 设置执行策略（当前进程）
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -ErrorAction SilentlyContinue
 
+$backendEnvPath = Join-Path $PSScriptRoot "backend\.env"
+$rootEnvExamplePath = Join-Path $PSScriptRoot ".env.example"
+
+if (-not (Test-Path $backendEnvPath)) {
+    if (-not (Test-Path $rootEnvExamplePath)) {
+        Write-Host "  ✗ 缺少 backend/.env 和根目录 .env.example，无法自动初始化环境变量" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "[0/3] backend/.env 不存在，正在从 .env.example 自动创建..." -ForegroundColor Yellow
+    Copy-Item -LiteralPath $rootEnvExamplePath -Destination $backendEnvPath
+    Write-Host "  ✓ backend/.env 已创建" -ForegroundColor Green
+    Write-Host ""
+}
+
 # 检查Docker容器是否运行
 Write-Host "[1/3] 检查Docker容器状态..." -ForegroundColor Yellow
 try {

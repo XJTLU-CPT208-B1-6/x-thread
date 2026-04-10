@@ -38,6 +38,7 @@ export class RoomsController {
       topic: string;
       mode?: 'ONSITE' | 'REMOTE';
       maxMembers?: number;
+      isPublic?: boolean;
       tags?: string[];
     },
   ) {
@@ -108,9 +109,37 @@ export class RoomsController {
   updateRoom(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean },
+    @Body()
+    dto: {
+      topic?: string;
+      tags?: string[];
+      maxMembers?: number;
+      isLocked?: boolean;
+      isPublic?: boolean;
+    },
   ) {
     return this.roomsService.updateRoom(id, user.userId, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/companion-bot')
+  async updateCompanionBot(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      enabled?: boolean;
+      profileId?: string | null;
+      profileIds?: string[];
+      activeProfileId?: string | null;
+    },
+  ) {
+    const result = await this.roomsService.setCompanionBot(id, user.userId, dto);
+    this.roomGateway.emitRoomUpdated(id, result.room);
+    if (result.announcement) {
+      this.roomGateway.emitMessage(id, result.announcement);
+    }
+    return result;
   }
 
   @UseGuards(JwtAuthGuard)

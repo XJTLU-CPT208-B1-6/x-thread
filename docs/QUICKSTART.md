@@ -12,6 +12,8 @@ pnpm install
 pnpm dev
 ```
 
+首次运行时，如果 `backend/.env` 不存在，脚本会自动从根目录 `.env.example` 创建默认配置。
+
 ## 方式二：使用 PowerShell 脚本
 
 ```powershell

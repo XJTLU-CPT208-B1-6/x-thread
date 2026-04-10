@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
+import { normalizePersonalityType } from '../../common/utils/personality-type';
 
 @Injectable()
 export class AuthService {
@@ -22,14 +23,19 @@ export class AuthService {
   async register(dto: {
     account: string;
     nickname: string;
+    personalityType: string;
     password: string;
   }) {
     const account = this.normalizeAccount(dto.account);
     const nickname = dto.nickname.trim();
+    const personalityType = normalizePersonalityType(dto.personalityType);
     const password = dto.password.trim();
 
     if (!nickname) {
       throw new BadRequestException('Nickname is required');
+    }
+    if (!personalityType) {
+      throw new BadRequestException('Personality type must be I or E');
     }
     if (password.length < 6) {
       throw new BadRequestException('Password must be at least 6 characters');
@@ -47,6 +53,7 @@ export class AuthService {
       data: {
         username: account,
         nickname,
+        personalityType,
         passwordHash: hash,
         isGuest: false,
       },
@@ -112,6 +119,7 @@ export class AuthService {
     username?: string | null;
     email?: string | null;
     nickname: string;
+    personalityType?: 'I' | 'E' | null;
     avatar?: string | null;
     isGuest: boolean;
     isAdmin?: boolean;
@@ -121,6 +129,7 @@ export class AuthService {
       account: user.username ?? null,
       email: user.email ?? null,
       nickname: user.nickname,
+      personalityType: user.personalityType ?? null,
       isGuest: user.isGuest,
       isAdmin: user.isAdmin ?? false,
     };
@@ -136,6 +145,7 @@ export class AuthService {
     username?: string | null;
     email?: string | null;
     nickname: string;
+    personalityType?: 'I' | 'E' | null;
     avatar?: string | null;
     isGuest: boolean;
     isAdmin?: boolean;
@@ -145,6 +155,7 @@ export class AuthService {
       account: user.username ?? null,
       email: user.email ?? null,
       nickname: user.nickname,
+      personalityType: user.personalityType ?? null,
       avatar: user.avatar ?? null,
       isGuest: user.isGuest,
       isAdmin: user.isAdmin ?? false,

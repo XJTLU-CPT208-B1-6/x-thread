@@ -15,9 +15,9 @@ This folder documents AI tool usage for CPT208 academic integrity compliance.
 > 新建一个文件夹，然后开始搭建前后端脚手架，后端用NestJS+Fastify+Prisma+PostgreSQL+Redis+Socket.IO，前端用React 18+Vite+TypeScript+Tailwind+Zustand+@xyflow/react，Monorepo结构，根目录含docker-compose.yml
 
 **Components generated:**
-- `backend/` — NestJS app structure with modules: auth, rooms, mindmap, chat, ai, pet
+- `backend/` — NestJS app structure with modules: auth, rooms, mindmap, chat, ai
 - `backend/src/gateways/room.gateway.ts` — Socket.IO gateway for real-time sync
-- `backend/prisma/schema.prisma` — Data models: User, Room, RoomMember, MindMapNode, MindMapEdge, ChatMessage, Pet, AgendaItem
+- `backend/prisma/schema.prisma` — Data models: User, Room, RoomMember, MindMapNode, MindMapEdge, ChatMessage, AgendaItem
 - `frontend/` — React + Vite app with pages, stores, hooks, lib
 - `docker-compose.yml` — PostgreSQL 16 + Redis 7 + MinIO
 - Root Monorepo config with pnpm workspace

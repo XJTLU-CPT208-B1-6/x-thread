@@ -9,7 +9,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { ChatService } from '../chat/chat.service';
 import { MindMapService } from '../mindmap/mindmap.service';
-import { PetService } from '../pet/pet.service';
 import { RoomsService } from '../rooms/rooms.service';
 
 @Injectable()
@@ -19,7 +18,6 @@ export class IngestionService {
     private roomsService: RoomsService,
     private chatService: ChatService,
     private mindMapService: MindMapService,
-    private petService: PetService,
     private aiService: AiService,
     private roomGateway: RoomGateway,
   ) {}
@@ -123,14 +121,6 @@ export class IngestionService {
       for (const node of nodes) {
         this.roomGateway.emitNodeAdded(event.roomId, node);
       }
-
-      // Update pet mood: 80 for excited (with concepts), 70 for happy (without concepts)
-      const pet = await this.petService.updateMood(
-        event.roomId,
-        concepts.length > 0 ? 80 : 70,
-        event.authorId ?? 'system',
-      );
-      this.roomGateway.emitPetUpdated(event.roomId, pet);
 
       await this.prisma.inputEvent.update({
         where: { id: inputEventId },

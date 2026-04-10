@@ -14,6 +14,7 @@ export class AuthController {
     dto: {
       account: string;
       nickname: string;
+      personalityType: string;
       password: string;
     },
   ) {

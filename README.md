@@ -78,6 +78,8 @@ docker compose up -d
 pnpm dev
 ```
 
+首次运行时，如果 `backend/.env` 不存在，启动脚本会自动从根目录 `.env.example` 生成默认配置。
+
 访问地址：
 
 - Frontend: `http://localhost:5173`

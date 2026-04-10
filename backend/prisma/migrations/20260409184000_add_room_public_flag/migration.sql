@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Room"
+ADD COLUMN "isPublic" BOOLEAN NOT NULL DEFAULT true;

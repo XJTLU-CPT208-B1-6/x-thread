@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { NodeType } from '@prisma/client';
+import { NodeType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RoomsService } from '../rooms/rooms.service';
 
@@ -56,9 +56,24 @@ export class MindMapService {
     dto: { label?: string; posX?: number; posY?: number; type?: NodeType },
   ) {
     await this.roomsService.ensureMembership(roomId, userId);
+    const data: Prisma.MindMapNodeUpdateInput = {};
+
+    if (dto.label !== undefined) {
+      data.label = dto.label;
+    }
+    if (dto.posX !== undefined) {
+      data.posX = dto.posX;
+    }
+    if (dto.posY !== undefined) {
+      data.posY = dto.posY;
+    }
+    if (dto.type !== undefined) {
+      data.type = dto.type;
+    }
+
     return this.prisma.mindMapNode.update({
       where: { id: nodeId },
-      data: dto as any,
+      data,
       include: {
         author: {
           select: { id: true, nickname: true, avatar: true },

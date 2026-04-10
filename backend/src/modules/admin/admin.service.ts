@@ -15,7 +15,6 @@ export class AdminService {
           orderBy: { joinedAt: 'asc' },
           include: { user: { select: { id: true, nickname: true, avatar: true } } },
         },
-        pet: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -53,7 +52,7 @@ export class AdminService {
     const room = await this.prisma.room.findUnique({ where: { id: roomId } });
     if (!room) throw new NotFoundException('Room not found');
 
-    // Cascade delete removes all related records (members, messages, nodes, edges, pet, etc.)
+    // Cascade delete removes all related records (members, messages, nodes, edges, etc.)
     await this.prisma.room.delete({ where: { id: roomId } });
 
     return { ok: true, roomId, code: room.code, topic: room.topic };

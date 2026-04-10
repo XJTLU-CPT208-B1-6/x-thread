@@ -1,9 +1,17 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { AccountService } from '../account/account.service';
 import { ChatService } from '../chat/chat.service';
+import { MindMapService } from '../mindmap/mindmap.service';
 import { RoomsService } from '../rooms/rooms.service';
 import { SharedFilesService } from '../shared-files/shared-files.service';
 import {
@@ -38,6 +46,7 @@ export class AiController {
     private readonly aiService: AiService,
     private readonly roomsService: RoomsService,
     private readonly chatService: ChatService,
+    private readonly mindMapService: MindMapService,
     private readonly sharedFilesService: SharedFilesService,
     private readonly accountService: AccountService,
   ) {}
@@ -118,6 +127,76 @@ export class AiController {
     });
 
     return { answer };
+  }
+
+  @Post('rooms/:roomId/whiteboard-summary')
+  async generateWhiteboardSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('roomId') roomId: string,
+    @Body()
+    dto: {
+      boardContentHtml?: string;
+    } & AiSettingsOverride,
+  ) {
+    const room = await this.roomsService.getRoom(roomId, user.userId);
+    const [messages, mindMap, fileTree] = await Promise.all([
+      this.chatService.getMessages(roomId, user.userId, { take: 200 }),
+      this.mindMapService.getRoomMap(roomId, user.userId),
+      this.sharedFilesService.listFiles(roomId, user.userId),
+    ]);
+
+    const selectedFileIds = fileTree.files.slice(0, 5).map((file) => file.id);
+    const referenceFiles =
+      selectedFileIds.length > 0
+        ? await this.sharedFilesService.getAiContext(roomId, user.userId, selectedFileIds)
+        : [];
+
+    const settings = await this.accountService.resolveAiSettings(user.userId, {
+      provider: dto.provider,
+      apiKey: dto.apiKey,
+      model: dto.model,
+      baseUrl: dto.baseUrl,
+    });
+
+    if (!settings.apiKey?.trim()) {
+      throw new BadRequestException('AI service is not configured for this account');
+    }
+
+    const nodeLabelMap = new Map(
+      (mindMap?.nodes ?? []).map((node) => [node.id, node.label] as const),
+    );
+
+    const summaryHtml = await this.aiService.generateWhiteboardSummary({
+      topic: room.topic,
+      boardContentHtml: dto.boardContentHtml ?? '',
+      messages: messages.map((message) => ({
+        author: message.nickname ?? 'Unknown',
+        content: message.content,
+      })),
+      mindMap: {
+        nodes: (mindMap?.nodes ?? []).map((node) => ({
+          label: node.label,
+          type: node.type,
+        })),
+        edges: (mindMap?.edges ?? []).map((edge) => ({
+          sourceLabel: nodeLabelMap.get(edge.sourceId) ?? edge.sourceId,
+          targetLabel: nodeLabelMap.get(edge.targetId) ?? edge.targetId,
+          label: edge.label ?? '',
+        })),
+      },
+      sharedFiles: referenceFiles,
+      allFileNames: fileTree.files.map((file) => file.filename),
+      settings,
+    });
+
+    return {
+      summaryHtml,
+      context: {
+        messageCount: messages.length,
+        mindMapNodeCount: mindMap?.nodes?.length ?? 0,
+        sharedFileCount: fileTree.files.length,
+      },
+    };
   }
 
   @Post('rooms/:roomId/generate-mindmap')

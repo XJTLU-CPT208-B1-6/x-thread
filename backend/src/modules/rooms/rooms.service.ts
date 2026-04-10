@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CompanionKind,
   MemberPresenceStatus,
   MessageType,
   RoomMemberRole,
@@ -15,13 +16,21 @@ import type { AuthenticatedUser } from '../../common/types/authenticated-user';
 import { serializeRoom } from '../../common/serializers/room.serializer';
 import { generateRoomCode } from '../../common/utils/room-code';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AccountService } from '../account/account.service';
 
 const HISTORY_RETENTION_DAYS = 14;
 const HISTORY_RETENTION_MS = HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_MEMBERS = 8;
+const MIN_ROOM_MEMBERS = 1;
+const MAX_ROOM_MEMBERS = 50;
+const ROOM_CODE_MAX_ATTEMPTS = 10;
 
 @Injectable()
 export class RoomsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly accountService: AccountService,
+  ) {}
 
   async createRoomSession(
     user: AuthenticatedUser,
@@ -29,6 +38,7 @@ export class RoomsService {
       topic: string;
       mode?: RoomMode;
       maxMembers?: number;
+      isPublic?: boolean;
       tags?: string[];
     },
   ) {
@@ -39,46 +49,45 @@ export class RoomsService {
       throw new BadRequestException('Topic is required');
     }
 
-    let code: string;
-    let attempts = 0;
-    do {
-      code = generateRoomCode();
-      attempts++;
-    } while (
-      attempts < 10 &&
-      (await this.prisma.room.findUnique({ where: { code } }))
-    );
-    if (await this.prisma.room.findUnique({ where: { code } })) {
-      throw new BadRequestException('Failed to allocate a unique room code');
+    const maxMembers = this.normalizeMaxMembers(dto.maxMembers);
+    const mode = this.normalizeMode(dto.mode);
+    const tags = this.normalizeTags(dto.tags);
+
+    for (let attempt = 0; attempt < ROOM_CODE_MAX_ATTEMPTS; attempt++) {
+      try {
+        const room = await this.prisma.room.create({
+          data: {
+            code: generateRoomCode(),
+            topic,
+            mode,
+            ownerId: user.userId,
+            maxMembers,
+            isPublic: dto.isPublic ?? true,
+            tags,
+            members: {
+              create: {
+                userId: user.userId,
+                role: RoomMemberRole.OWNER,
+                status: MemberPresenceStatus.ACTIVE,
+              },
+            },
+          },
+          include: this.getRoomInclude(),
+        });
+
+        return {
+          room: serializeRoom(room),
+        };
+      } catch (error) {
+        if (this.isUniqueConstraintError(error)) {
+          continue;
+        }
+
+        throw error;
+      }
     }
 
-    const room = await this.prisma.room.create({
-      data: {
-        code,
-        topic,
-        mode: dto.mode ?? RoomMode.ONSITE,
-        ownerId: user.userId,
-        maxMembers: dto.maxMembers ?? 8,
-        tags: dto.tags ?? [],
-        members: {
-          create: {
-            userId: user.userId,
-            role: RoomMemberRole.OWNER,
-            status: MemberPresenceStatus.ACTIVE,
-          },
-        },
-        pet: {
-          create: {
-            name: 'Buddy',
-          },
-        },
-      },
-      include: this.getRoomInclude(),
-    });
-
-    return {
-      room: serializeRoom(room),
-    };
+    throw new BadRequestException('Failed to allocate a unique room code');
   }
 
   async joinRoomSession(user: AuthenticatedUser, dto: { code: string }) {
@@ -189,7 +198,13 @@ export class RoomsService {
   async updateRoom(
     roomId: string,
     userId: string,
-    dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean },
+    dto: {
+      topic?: string;
+      tags?: string[];
+      maxMembers?: number;
+      isLocked?: boolean;
+      isPublic?: boolean;
+    },
   ) {
     await this.ensureOwner(roomId, userId);
 
@@ -199,11 +214,25 @@ export class RoomsService {
       if (!topic) throw new BadRequestException('Topic cannot be empty');
       data.topic = topic;
     }
-    if (dto.tags !== undefined) data.tags = dto.tags;
+    if (dto.tags !== undefined) data.tags = this.normalizeTags(dto.tags);
     if (dto.maxMembers !== undefined) {
-      if (dto.maxMembers < 1 || dto.maxMembers > 50) throw new BadRequestException('maxMembers must be 1-50');
-      data.maxMembers = dto.maxMembers;
+      const maxMembers = this.normalizeMaxMembers(dto.maxMembers);
+      const activeMemberCount = await this.prisma.roomMember.count({
+        where: {
+          roomId,
+          status: {
+            not: MemberPresenceStatus.LEFT,
+          },
+        },
+      });
+      if (maxMembers < activeMemberCount) {
+        throw new BadRequestException(
+          `maxMembers cannot be lower than the current active member count (${activeMemberCount})`,
+        );
+      }
+      data.maxMembers = maxMembers;
     }
+    if (dto.isPublic !== undefined) data.isPublic = dto.isPublic;
     if (dto.isLocked !== undefined) data.isLocked = dto.isLocked;
 
     const room = await this.prisma.room.update({
@@ -212,6 +241,143 @@ export class RoomsService {
       include: this.getRoomInclude(),
     });
     return { room: serializeRoom(room) };
+  }
+
+  async setCompanionBot(
+    roomId: string,
+    userId: string,
+    dto: {
+      enabled?: boolean;
+      profileId?: string | null;
+      profileIds?: string[];
+      activeProfileId?: string | null;
+    },
+  ) {
+    await this.ensureOwner(roomId, userId);
+    await this.accountService.ensureDefaultCompanions(userId);
+
+    const roomSnapshot = await this.prisma.room.findUnique({
+      where: { id: roomId },
+      select: {
+        id: true,
+        topic: true,
+        botEnabled: true,
+        botProfileId: true,
+      },
+    });
+    if (!roomSnapshot) {
+      throw new NotFoundException('Room not found');
+    }
+
+    const requestedIds =
+      dto.enabled === false
+        ? []
+        : Array.from(
+            new Set(
+              (dto.profileIds?.length ? dto.profileIds : [dto.profileId ?? ''])
+                .map((value) => value?.trim())
+                .filter((value): value is string => Boolean(value)),
+            ),
+          );
+
+    if (dto.enabled !== false && requestedIds.length === 0) {
+      throw new BadRequestException('At least one companion profile must be selected');
+    }
+
+    const selectedBots =
+      requestedIds.length > 0
+        ? await this.prisma.userCompanionProfile.findMany({
+            where: {
+              id: { in: requestedIds },
+              userId,
+            },
+            select: {
+              id: true,
+              kind: true,
+              name: true,
+              emoji: true,
+              description: true,
+              styleGuide: true,
+              isDefault: true,
+            },
+          })
+        : [];
+
+    if (selectedBots.length !== requestedIds.length) {
+      throw new NotFoundException('One or more companion profiles were not found');
+    }
+
+    const selectedBotMap = new Map(selectedBots.map((bot) => [bot.id, bot]));
+    const orderedSelectedBots = requestedIds
+      .map((id) => selectedBotMap.get(id))
+      .filter((bot): bot is NonNullable<typeof bot> => Boolean(bot));
+
+    const requestedActiveProfileId = dto.activeProfileId?.trim() || dto.profileId?.trim() || null;
+    const nextBotProfileId =
+      requestedIds.length === 0
+        ? null
+        : requestedActiveProfileId && requestedIds.includes(requestedActiveProfileId)
+          ? requestedActiveProfileId
+          : orderedSelectedBots[0]?.id ?? null;
+
+    const selectedBot =
+      nextBotProfileId !== null ? selectedBotMap.get(nextBotProfileId) ?? null : null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.roomCompanionSelection.deleteMany({
+        where: {
+          roomId,
+          companionProfileId: {
+            notIn: requestedIds.length > 0 ? requestedIds : ['__none__'],
+          },
+        },
+      });
+
+      if (requestedIds.length > 0) {
+        await tx.roomCompanionSelection.createMany({
+          data: requestedIds.map((companionProfileId) => ({
+            roomId,
+            companionProfileId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      await tx.room.update({
+        where: { id: roomId },
+        data: {
+          botEnabled: requestedIds.length > 0,
+          botProfileId: nextBotProfileId,
+        },
+      });
+    });
+
+    const room = await this.getRoomEntity(roomId);
+
+    const shouldAnnounce =
+      Boolean(selectedBot) &&
+      (!roomSnapshot.botEnabled || roomSnapshot.botProfileId !== nextBotProfileId);
+
+    const announcement =
+      shouldAnnounce && selectedBot
+        ? this.serializeStoredMessage(
+            await this.prisma.chatMessage.create({
+              data: {
+                roomId,
+                authorId: null,
+                type: MessageType.TEXT,
+                content: this.buildBotAnnouncement(room.topic, selectedBot),
+                botName: selectedBot.name,
+                botEmoji: selectedBot.emoji,
+              },
+            }),
+          )
+        : null;
+
+    return {
+      room: serializeRoom(room),
+      announcement,
+    };
   }
 
   async leaveRoom(userId: string, roomId: string) {
@@ -302,6 +468,7 @@ export class RoomsService {
   async listLobbyRooms() {
     const rooms = await this.prisma.room.findMany({
       where: {
+        isPublic: true,
         phase: { not: RoomPhase.CLOSED },
         // Exclude rooms with no active members (e.g. dissolved before phase was set)
         members: {
@@ -377,6 +544,7 @@ export class RoomsService {
             id: true,
             nickname: true,
             avatar: true,
+            personalityType: true,
           },
         },
       },
@@ -394,6 +562,33 @@ export class RoomsService {
 
   private getRoomInclude() {
     return {
+      botProfile: {
+        select: {
+          id: true,
+          kind: true,
+          name: true,
+          emoji: true,
+          description: true,
+          styleGuide: true,
+          isDefault: true,
+        },
+      },
+      companionSelections: {
+        orderBy: { createdAt: 'asc' as const },
+        select: {
+          companionProfile: {
+            select: {
+              id: true,
+              kind: true,
+              name: true,
+              emoji: true,
+              description: true,
+              styleGuide: true,
+              isDefault: true,
+            },
+          },
+        },
+      },
       members: {
         where: {
           status: {
@@ -407,11 +602,11 @@ export class RoomsService {
               id: true,
               nickname: true,
               avatar: true,
+              personalityType: true,
             },
           },
         },
       },
-      pet: true,
     };
   }
 
@@ -419,5 +614,85 @@ export class RoomsService {
     if (user.isGuest || !user.account) {
       throw new ForbiddenException('Please log in with a registered account first');
     }
+  }
+
+  private normalizeMaxMembers(value?: number) {
+    const maxMembers = value ?? DEFAULT_MAX_MEMBERS;
+    if (!Number.isInteger(maxMembers) || maxMembers < MIN_ROOM_MEMBERS || maxMembers > MAX_ROOM_MEMBERS) {
+      throw new BadRequestException(
+        `maxMembers must be an integer between ${MIN_ROOM_MEMBERS} and ${MAX_ROOM_MEMBERS}`,
+      );
+    }
+
+    return maxMembers;
+  }
+
+  private normalizeMode(mode?: RoomMode) {
+    if (!mode) {
+      return RoomMode.ONSITE;
+    }
+
+    if (!Object.values(RoomMode).includes(mode)) {
+      throw new BadRequestException('Invalid room mode');
+    }
+
+    return mode;
+  }
+
+  private normalizeTags(tags?: string[]) {
+    if (tags === undefined) {
+      return [];
+    }
+
+    if (!Array.isArray(tags)) {
+      throw new BadRequestException('tags must be an array of strings');
+    }
+
+    return Array.from(new Set(tags.map((tag) => `${tag}`.trim()).filter(Boolean)));
+  }
+
+  private isUniqueConstraintError(error: unknown) {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    );
+  }
+
+  private buildBotAnnouncement(
+    topic: string,
+    bot: {
+      name: string;
+      emoji: string;
+      description: string;
+      styleGuide: string;
+    },
+  ) {
+    return `大家好，我是 ${bot.name}${bot.emoji}。接下来我会用「${bot.styleGuide}」的方式陪你们聊「${topic}」，想找我时直接 @${bot.name} 就行。`;
+  }
+
+  private serializeStoredMessage(message: {
+    id: string;
+    roomId: string;
+    authorId: string | null;
+    content: string;
+    type: MessageType;
+    botName?: string | null;
+    botEmoji?: string | null;
+    createdAt: Date;
+  }) {
+    return {
+      id: message.id,
+      roomId: message.roomId,
+      authorId: message.authorId,
+      nickname: message.botName ?? 'System',
+      avatar: null,
+      content: message.content,
+      type: message.type,
+      botName: message.botName ?? null,
+      botEmoji: message.botEmoji ?? null,
+      createdAt: message.createdAt,
+    };
   }
 }

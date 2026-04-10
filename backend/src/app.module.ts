@@ -9,7 +9,6 @@ import { MindMapModule } from './modules/mindmap/mindmap.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AiModule } from './modules/ai/ai.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
-import { PetModule } from './modules/pet/pet.module';
 import { SharedFilesModule } from './modules/shared-files/shared-files.module';
 import { WhiteboardModule } from './modules/whiteboard/whiteboard.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -26,7 +25,6 @@ import { AdminModule } from './modules/admin/admin.module';
     ChatModule,
     AiModule,
     IngestionModule,
-    PetModule,
     SharedFilesModule,
     WhiteboardModule,
     AdminModule,

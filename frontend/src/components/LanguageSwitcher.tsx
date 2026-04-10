@@ -1,137 +1,100 @@
-import { Languages, Globe } from 'lucide-react';
-import { useLanguageStore } from '../stores/useLanguageStore';
-import { useT } from '../lib/i18n';
+﻿import { Globe, Languages } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import { useLanguageStore } from '../stores/useLanguageStore';
 
 export function LanguageSwitcher() {
-  const t = useT();
   const { language, setLanguage } = useLanguageStore();
   const [isOpen, setIsOpen] = useState(false);
-
-  const toggleLanguage = () => {
-    setLanguage(language === 'zh' ? 'en' : 'zh');
-    setIsOpen(false);
-  };
+  const isChinese = language === 'zh';
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="group flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 shadow-sm"
-        aria-label={language === 'zh' ? '切换语言' : 'Switch language'}
+        onClick={() => setIsOpen((value) => !value)}
+        className="group flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+        aria-label={isChinese ? '切换语言' : 'Switch language'}
       >
-        <Globe className="h-4 w-4 text-slate-500 group-hover:text-blue-500 transition-colors" />
-        <span className="hidden sm:inline">
-          {language === 'zh' ? '中文' : 'EN'}
-        </span>
-        <Languages className="h-4 w-4 text-slate-400 group-hover:text-blue-400 transition-colors" />
+        <Globe className="h-4 w-4 text-slate-500 transition-colors group-hover:text-blue-500" />
+        <span className="hidden sm:inline">{isChinese ? '中文' : 'EN'}</span>
+        <Languages className="h-4 w-4 text-slate-400 transition-colors group-hover:text-blue-400" />
       </button>
 
       <AnimatePresence>
-        {isOpen && (
+        {isOpen ? (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            initial={{ opacity: 0, y: -10, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="absolute right-0 top-full mt-2 z-50 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+            exit={{ opacity: 0, y: -10, scale: 0.96 }}
+            className="absolute right-0 top-full z-50 mt-2 w-52 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
           >
             <div className="p-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setLanguage('zh');
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
-                  language === 'zh'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                  language === 'zh' ? 'bg-blue-100' : 'bg-slate-100'
-                }`}>
-                  <span className="text-lg">🇨🇳</span>
-                </div>
-                <div>
-                  <div className="font-semibold">中文</div>
-                  <div className="text-xs text-slate-500">Simplified Chinese</div>
-                </div>
-                {language === 'zh' && (
-                  <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-blue-600">
-                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-              </button>
+              {[
+                { id: 'zh' as const, title: '中文', subtitle: 'Simplified Chinese', badge: 'CN' },
+                { id: 'en' as const, title: 'English', subtitle: 'US English', badge: 'EN' },
+              ].map((option) => {
+                const active = option.id === language;
 
-              <button
-                type="button"
-                onClick={() => {
-                  setLanguage('en');
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
-                  language === 'en'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'hover:bg-slate-50 text-slate-700'
-                }`}
-              >
-                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                  language === 'en' ? 'bg-blue-100' : 'bg-slate-100'
-                }`}>
-                  <span className="text-lg">🇺🇸</span>
-                </div>
-                <div>
-                  <div className="font-semibold">English</div>
-                  <div className="text-xs text-slate-500">US English</div>
-                </div>
-                {language === 'en' && (
-                  <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-blue-600">
-                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                )}
-              </button>
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      setLanguage(option.id);
+                      setIsOpen(false);
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
+                      active ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold ${
+                        active ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {option.badge}
+                    </div>
+                    <div>
+                      <div className="font-semibold">{option.title}</div>
+                      <div className="text-xs text-slate-500">{option.subtitle}</div>
+                    </div>
+                    {active ? (
+                      <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
+                        ?
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="border-t border-slate-100 px-4 py-3">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Languages className="h-3 w-3" />
-                <span>{language === 'zh' ? '即时切换，无需刷新' : 'Switch instantly, no refresh needed'}</span>
-              </div>
+            <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+              {isChinese ? '即时切换，无需刷新' : 'Switch instantly, no refresh needed'}
             </div>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
 
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      {isOpen ? <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} /> : null}
     </div>
   );
 }
 
 export function SimpleLanguageToggle() {
   const { language, setLanguage } = useLanguageStore();
-  const t = useT();
+  const isChinese = language === 'zh';
 
   return (
     <button
       type="button"
-      onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
-      className="group inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 shadow-sm"
-      aria-label={language === 'zh' ? '切换语言' : 'Switch language'}
+      onClick={() => setLanguage(isChinese ? 'en' : 'zh')}
+      className="group inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+      aria-label={isChinese ? '切换语言' : 'Switch language'}
     >
-      <Globe className="h-4 w-4 text-slate-500 group-hover:text-blue-500 transition-colors" />
-      <span>{language === 'zh' ? '中文 / EN' : 'EN / 中文'}</span>
+      <Globe className="h-4 w-4 text-slate-500 transition-colors group-hover:text-blue-500" />
+      <span>{isChinese ? '中文 / EN' : 'EN / 中文'}</span>
     </button>
   );
 }
+

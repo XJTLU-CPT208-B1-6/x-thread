@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { type PersonalityType } from '../lib/personality';
 
 export interface User {
   id: string;    // userId from backend
@@ -8,6 +9,7 @@ export interface User {
   realName?: string | null;
   xjtluEmail?: string | null;
   avatar?: string | null;
+  personalityType?: PersonalityType | null;
   isGuest?: boolean;
   isAdmin?: boolean;
 }

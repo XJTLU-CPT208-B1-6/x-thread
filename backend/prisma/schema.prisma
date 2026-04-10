@@ -12,6 +12,7 @@ model User {
   username     String?  @unique
   email        String?  @unique
   nickname     String
+  personalityType PersonalityType?
   realName     String?
   xjtluEmail   String?
   avatar       String?
@@ -27,6 +28,12 @@ model User {
   messages    ChatMessage[]
   inputEvents InputEvent[]
   aiSettings  UserAiSettings?
+  companions  UserCompanionProfile[]
+}
+
+enum PersonalityType {
+  I
+  E
 }
 
 model EmailVerificationCode {
@@ -54,6 +61,36 @@ model UserAiSettings {
   updatedAt       DateTime @updatedAt
 }
 
+enum CompanionKind {
+  CAT
+  DOG
+  COMPUTER
+  DOLPHIN
+  CUSTOM
+}
+
+model UserCompanionProfile {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind         CompanionKind @default(CUSTOM)
+  slug         String
+  name         String
+  emoji        String        @default("✨")
+  description  String
+  styleGuide   String
+  systemPrompt String
+  isDefault    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  activeRooms Room[] @relation("RoomCompanionProfile")
+  roomSelections RoomCompanionSelection[]
+
+  @@unique([userId, slug])
+  @@index([userId, isDefault])
+}
+
 enum RoomMode {
   ONSITE
   REMOTE
@@ -75,7 +112,11 @@ model Room {
   phase      RoomPhase @default(LOBBY)
   ownerId    String
   owner      User      @relation("RoomOwner", fields: [ownerId], references: [id])
+  botEnabled Boolean   @default(false)
+  botProfileId String?
+  botProfile UserCompanionProfile? @relation("RoomCompanionProfile", fields: [botProfileId], references: [id], onDelete: SetNull)
   maxMembers Int       @default(8)
+  isPublic   Boolean   @default(true)
   isLocked   Boolean   @default(false)
   tags       String[]  @default([])
   createdAt  DateTime  @default(now())
@@ -86,8 +127,21 @@ model Room {
   nodes    MindMapNode[]
   edges    MindMapEdge[]
   messages ChatMessage[]
-  pet      Pet?
   inputs   InputEvent[]
+  companionSelections RoomCompanionSelection[]
+}
+
+model RoomCompanionSelection {
+  id                String               @id @default(cuid())
+  roomId            String
+  room              Room                 @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  companionProfileId String
+  companionProfile  UserCompanionProfile @relation(fields: [companionProfileId], references: [id], onDelete: Cascade)
+  createdAt         DateTime             @default(now())
+
+  @@unique([roomId, companionProfileId])
+  @@index([roomId, createdAt])
+  @@index([companionProfileId])
 }
 
 enum RoomMemberRole {
@@ -176,23 +230,9 @@ model ChatMessage {
   author    User?       @relation(fields: [authorId], references: [id])
   content   String
   type      MessageType @default(TEXT)
+  botName   String?
+  botEmoji  String?
   createdAt DateTime    @default(now())
-}
-
-model Pet {
-  id        String   @id @default(cuid())
-  roomId    String   @unique
-  petType   String   @default("cat") // 'cat' | 'dog'
-  name      String   @default("Pet")
-  mood      Int      @default(50) // 0-100
-  energy    Int      @default(100) // 0-100
-  level     Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
-
-  @@index([roomId])
 }
 
 enum InputEventKind {

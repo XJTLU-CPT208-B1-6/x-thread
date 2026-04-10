@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { AccountProfile, getStoredAuthToken } from '../lib/auth';
+import { type PersonalityType } from '../lib/personality';
+import { CompanionProfile } from '../types/companion';
 import { SharedFile, SharedFileTree, SharedFolder } from '../types/shared-file';
 
 const api = axios.create({
@@ -80,6 +82,7 @@ export type AccountOverview = {
     model: string;
     hasApiKey: boolean;
   };
+  companions: CompanionProfile[];
   activeRooms: AccountOverviewRoom[];
   roomHistory: AccountOverviewRoom[];
 };
@@ -153,10 +156,20 @@ export type WhiteboardSnapshot = {
   updatedByNickname: string | null;
 };
 
+export type WhiteboardSummaryResponse = {
+  summaryHtml: string;
+  context: {
+    messageCount: number;
+    mindMapNodeCount: number;
+    sharedFileCount: number;
+  };
+};
+
 export const authService = {
   register: async (payload: {
     account: string;
     nickname: string;
+    personalityType?: PersonalityType;
     password: string;
   }) => {
     const response = await api.post('/auth/register', payload);
@@ -181,6 +194,7 @@ export const accountService = {
     nickname?: string;
     realName?: string;
     xjtluEmail?: string;
+    personalityType?: PersonalityType;
     avatarDataUrl?: string;
     clearAvatar?: boolean;
   }) => {
@@ -195,14 +209,38 @@ export const accountService = {
     const response = await api.get('/account/ai-settings');
     return response.data as AiProviderSettings;
   },
+  getCompanions: async () => {
+    const response = await api.get('/account/companions');
+    return response.data as CompanionProfile[];
+  },
   updateAiSettings: async (settings: AiProviderSettings) => {
     const response = await api.put('/account/ai-settings', settings);
     return response.data as { settings: AiProviderSettings };
   },
+  createCompanion: async (payload: {
+    name: string;
+    emoji?: string;
+    description: string;
+    styleGuide: string;
+    systemPrompt: string;
+  }) => {
+    const response = await api.post('/account/companions', payload);
+    return response.data as { companion: CompanionProfile };
+  },
+  deleteCompanion: async (id: string) => {
+    const response = await api.delete(`/account/companions/${id}`);
+    return response.data as { ok: boolean };
+  },
 };
 
 export const roomService = {
-  createRoom: async (data: { topic: string; mode?: 'ONSITE' | 'REMOTE'; maxMembers?: number; tags?: string[] }) => {
+  createRoom: async (data: {
+    topic: string;
+    mode?: 'ONSITE' | 'REMOTE';
+    maxMembers?: number;
+    isPublic?: boolean;
+    tags?: string[];
+  }) => {
     const response = await api.post('/rooms', data);
     return response.data as { room: any };
   },
@@ -214,9 +252,44 @@ export const roomService = {
     const response = await api.post(`/rooms/${id}/lock`);
     return response.data as { room: any };
   },
-  updateRoom: async (id: string, dto: { topic?: string; tags?: string[]; maxMembers?: number; isLocked?: boolean }) => {
+  updateRoom: async (
+    id: string,
+    dto: {
+      topic?: string;
+      tags?: string[];
+      maxMembers?: number;
+      isLocked?: boolean;
+      isPublic?: boolean;
+    },
+  ) => {
     const response = await api.patch(`/rooms/${id}`, dto);
     return response.data as { room: any };
+  },
+  updateCompanionBot: async (
+    id: string,
+    dto: {
+      enabled?: boolean;
+      profileId?: string | null;
+      profileIds?: string[];
+      activeProfileId?: string | null;
+    },
+  ) => {
+    const response = await api.patch(`/rooms/${id}/companion-bot`, dto);
+    return response.data as {
+      room: any;
+      announcement?: {
+        id: string;
+        roomId: string;
+        authorId: string | null;
+        nickname: string;
+        avatar?: string | null;
+        content: string;
+        type: 'TEXT' | 'VOICE_TRANSCRIPT' | 'SYSTEM';
+        botName?: string | null;
+        botEmoji?: string | null;
+        createdAt: string;
+      } | null;
+    };
   },
   joinRoom: async (code: string) => {
     const response = await api.post('/rooms/join', { code });
@@ -326,6 +399,20 @@ export const roomAiService = {
       model: settings?.model,
     });
     return response.data as { answer: string };
+  },
+  generateWhiteboardSummary: async (
+    roomId: string,
+    boardContentHtml: string,
+    settings?: AiProviderSettings,
+  ) => {
+    const response = await api.post(`/ai/rooms/${roomId}/whiteboard-summary`, {
+      boardContentHtml,
+      provider: settings?.provider,
+      apiKey: settings?.apiKey,
+      baseUrl: settings?.baseUrl,
+      model: settings?.model,
+    });
+    return response.data as WhiteboardSummaryResponse;
   },
   testConnection: async (settings: AiProviderSettings) => {
     const response = await api.post('/ai/test-connection', {
@@ -459,42 +546,6 @@ export const sharedFileService = {
       },
     );
     return response.data as Blob;
-  },
-};
-
-export type PetData = {
-  id: string;
-  roomId: string;
-  petType: 'cat' | 'dog';
-  name: string;
-  mood: number;
-  energy: number;
-  level: number;
-  updatedAt: string;
-};
-
-export type FeedResult = {
-  pet: PetData;
-  energyGained: number;
-  message: string;
-};
-
-export const petService = {
-  getPet: async (roomId: string) => {
-    const response = await api.get(`/rooms/${roomId}/pet`);
-    return response.data as PetData;
-  },
-  updateMood: async (roomId: string, mood: number) => {
-    const response = await api.patch(`/rooms/${roomId}/pet/mood`, { mood });
-    return response.data as PetData;
-  },
-  feedPet: async (roomId: string) => {
-    const response = await api.post(`/rooms/${roomId}/pet/feed`);
-    return response.data as FeedResult;
-  },
-  changePetType: async (roomId: string, petType: 'cat' | 'dog') => {
-    const response = await api.patch(`/rooms/${roomId}/pet/type`, { petType });
-    return response.data as PetData;
   },
 };
 

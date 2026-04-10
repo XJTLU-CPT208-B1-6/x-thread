@@ -15,6 +15,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   validate(payload: {
     sub: string;
     nickname?: string;
+    personalityType?: 'I' | 'E' | null;
     account?: string | null;
     email?: string | null;
     isGuest?: boolean;
@@ -25,6 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       account: payload.account ?? null,
       email: payload.email ?? null,
       nickname: payload.nickname ?? 'Guest',
+      personalityType: payload.personalityType ?? null,
       isGuest: payload.isGuest ?? true,
       isAdmin: payload.isAdmin ?? false,
     };

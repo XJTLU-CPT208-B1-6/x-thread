@@ -3,6 +3,7 @@ export interface AuthenticatedUser {
   account?: string | null;
   email?: string | null;
   nickname: string;
+  personalityType?: 'I' | 'E' | null;
   isGuest: boolean;
   isAdmin: boolean;
 }

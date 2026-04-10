@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "prisma migrate deploy && prisma generate",
     "dev": "nest start --watch",
+    "prebuild": "prisma generate",
     "build": "nest build",
+    "prestart": "prisma generate",
     "start": "node dist/main",
+    "pretest": "prisma generate",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

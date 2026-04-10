@@ -6,6 +6,12 @@ import {
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
+const isAddressInUseError = (error: unknown): error is { code: string } =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error as { code?: unknown }).code === 'EADDRINUSE';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -20,8 +26,8 @@ async function bootstrap() {
   try {
     await app.listen(port, '0.0.0.0');
     console.log(`X-Thread backend running on http://localhost:${port}`);
-  } catch (error: any) {
-    if (error?.code === 'EADDRINUSE') {
+  } catch (error: unknown) {
+    if (isAddressInUseError(error)) {
       console.error(
         `Port ${port} is already in use. Stop the existing process on that port or change PORT in your environment before starting the backend.`,
       );

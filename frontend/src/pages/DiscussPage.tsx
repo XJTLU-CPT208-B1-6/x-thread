@@ -5,7 +5,6 @@ import { FileSharePanel } from '../components/FileSharePanel';
 import { MindMap } from '../components/MindMap';
 import { TextWhiteboard } from '../components/TextWhiteboard';
 import { mapMindMapEdges, mapMindMapNodes } from '../lib/mindmap';
-import { PetWidget } from '../components/PetWidget';
 import { VoicePanel } from '../components/VoicePanel';
 import { useSocket } from '../hooks/useSocket';
 import {
@@ -349,7 +348,6 @@ export default function DiscussPage() {
         </div>
 
         <VoicePanel />
-        <PetWidget roomId={currentRoom?.id} />
       </div>
     </div>
   );
