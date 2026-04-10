@@ -22,7 +22,7 @@ import { AccountAiSettingsPanel } from '../components/AccountAiSettingsPanel';
 import { CompanionSettingsPanel } from '../components/CompanionSettingsPanel';
 import { GroupLobbyPanel } from '../components/GroupLobbyPanel';
 import { PersonalityBadge } from '../components/PersonalityBadge';
-import { SimpleLanguageToggle } from '../components/LanguageSwitcher';
+import { LanguageSwitcher, SimpleLanguageToggle } from '../components/LanguageSwitcher';
 import { accountService, authService, roomService, type AccountOverview } from '../services/api-client';
 import { applyAuthSession, clearAuthSession, getStoredAuthToken, syncUserFromProfile } from '../lib/auth';
 import { saveAiSettings } from '../lib/ai-settings';
@@ -109,11 +109,15 @@ export default function HomeWorkspacePage() {
             pets: 'Pet Settings',
             lang: 'Language',
             welcome: 'Welcome to X-Thread',
+            welcomeDesc: 'Create an account or sign in, then continue your discussions with language-aware collaboration tools.',
             account: 'Account',
             nickname: 'Nickname',
             password: 'Password',
             login: 'Login',
             register: 'Register',
+            personalityType: 'Personality Type',
+            personalityTypeDesc: 'Pick the style that matches how you usually join group discussion.',
+            authSwitchDesc: 'Switch language anytime before signing in.',
             createTopic: 'Discussion Topic',
             roomCode: 'Room Code',
             roomMode: 'Room Mode',
@@ -146,11 +150,15 @@ export default function HomeWorkspacePage() {
             pets: '宠物设置',
             lang: '语言',
             welcome: '欢迎来到 X-Thread',
+            welcomeDesc: '先注册或登录，再继续使用支持中英文协作的房间讨论工具。',
             account: '账号',
             nickname: '昵称',
             password: '密码',
             login: '登录',
             register: '注册',
+            personalityType: '人格类型',
+            personalityTypeDesc: '选择你平时参与小组讨论时更接近的表达方式。',
+            authSwitchDesc: '登录前也可以随时切换中英文界面。',
             createTopic: '讨论主题',
             roomCode: '房间码',
             roomMode: '房间模式',
@@ -358,7 +366,127 @@ export default function HomeWorkspacePage() {
   };
 
   if (!user) {
-    return <div className="min-h-[100dvh] bg-[linear-gradient(135deg,_#eff6ff_0%,_#dbeafe_48%,_#ffffff_100%)] px-4 py-8"><div className="mx-auto flex max-w-lg flex-col gap-8"><div className="text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-2xl font-black text-white shadow-xl">XT</div><h1 className="mt-4 text-3xl font-black tracking-tight text-blue-950">{copy.welcome}</h1></div><section className="rounded-[34px] border border-blue-200/60 bg-white/95 p-8 shadow-[0_32px_90px_rgba(30,58,138,0.12)]"><div className="mb-6 flex rounded-2xl bg-blue-50 p-1 border border-blue-100">{(['login', 'register'] as const).map((tab) => <button key={tab} type="button" onClick={() => setAuthTab(tab)} className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition ${authTab === tab ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-700/70 hover:text-blue-900'}`}>{tab === 'login' ? copy.login : copy.register}</button>)}</div><div className="space-y-4"><div><label className="mb-2 block text-sm font-medium text-blue-950">{copy.account}</label><input value={accountForm.account} onChange={(event) => setAccountForm((current) => ({ ...current, account: event.target.value }))} className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></div>{authTab === 'register' ? <div><label className="mb-2 block text-sm font-medium text-blue-950">{copy.nickname}</label><input value={accountForm.nickname} onChange={(event) => setAccountForm((current) => ({ ...current, nickname: event.target.value }))} className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></div> : null}<div><label className="mb-2 block text-sm font-medium text-blue-950">{copy.password}</label><input type="password" value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></div>{error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}<button type="button" onClick={() => void (authTab === 'login' ? handleLogin() : handleRegister())} disabled={authBusy} className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60">{authBusy ? '...' : authTab === 'login' ? copy.login : copy.register}</button></div></section></div></div>;
+    return (
+      <div className="min-h-[100dvh] bg-[linear-gradient(135deg,_#eff6ff_0%,_#dbeafe_48%,_#ffffff_100%)] px-4 py-8">
+        <div className="mx-auto flex max-w-lg flex-col gap-8">
+          <div className="flex justify-end">
+            <LanguageSwitcher />
+          </div>
+
+          <div className="text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 text-2xl font-black text-white shadow-xl">
+              XT
+            </div>
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-blue-950">{copy.welcome}</h1>
+            <p className="mt-3 text-sm leading-7 text-blue-800/75">{copy.welcomeDesc}</p>
+          </div>
+
+          <section className="rounded-[34px] border border-blue-200/60 bg-white/95 p-8 shadow-[0_32px_90px_rgba(30,58,138,0.12)]">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-500">
+                {copy.authSwitchDesc}
+              </div>
+              <div className="hidden md:block">
+                <SimpleLanguageToggle />
+              </div>
+            </div>
+
+            <div className="mb-6 flex rounded-2xl border border-blue-100 bg-blue-50 p-1">
+              {(['login', 'register'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setAuthTab(tab)}
+                  className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                    authTab === tab ? 'bg-blue-600 text-white shadow-sm' : 'text-blue-700/70 hover:text-blue-900'
+                  }`}
+                >
+                  {tab === 'login' ? copy.login : copy.register}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-blue-950">{copy.account}</label>
+                <input
+                  value={accountForm.account}
+                  onChange={(event) => setAccountForm((current) => ({ ...current, account: event.target.value }))}
+                  className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              {authTab === 'register' ? (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-blue-950">{copy.nickname}</label>
+                    <input
+                      value={accountForm.nickname}
+                      onChange={(event) => setAccountForm((current) => ({ ...current, nickname: event.target.value }))}
+                      className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <label className="block text-sm font-medium text-blue-950">{copy.personalityType}</label>
+                      <span className="text-xs text-blue-700/70">{copy.personalityTypeDesc}</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {personalityOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setAccountForm((current) => ({ ...current, personalityType: option.value }))
+                          }
+                          className={`rounded-2xl border px-4 py-3 text-left transition ${
+                            accountForm.personalityType === option.value
+                              ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm'
+                              : 'border-slate-200 bg-slate-50 text-slate-800 hover:border-blue-300 hover:bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-semibold">{option.label}</span>
+                            <PersonalityBadge value={option.value} />
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">{option.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-blue-950">{copy.password}</label>
+                <input
+                  type="password"
+                  value={accountForm.password}
+                  onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))}
+                  className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              {error ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => void (authTab === 'login' ? handleLogin() : handleRegister())}
+                disabled={authBusy}
+                className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              >
+                {authBusy ? '...' : authTab === 'login' ? copy.login : copy.register}
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
   }
 
   return <div className="min-h-[100dvh] bg-[linear-gradient(135deg,_#eff6ff_0%,_#dbeafe_48%,_#ffffff_100%)] p-2 text-blue-950 md:p-4"><div className="mx-auto flex min-h-[calc(100dvh-1rem)] max-w-[1600px] gap-4 md:min-h-[calc(100dvh-2rem)]"><div className={`fixed inset-0 z-30 bg-slate-950/45 transition md:hidden ${sidebarOpen ? 'block' : 'hidden'}`} onClick={() => setSidebarOpen(false)} /><aside className={`fixed inset-y-2 left-2 z-40 flex w-[min(82vw,320px)] flex-col overflow-hidden rounded-[28px] border border-slate-200/60 bg-white text-slate-800 shadow-[0_20px_60px_rgba(15,23,42,0.16)] transition-transform md:static md:w-[280px] md:shrink-0 md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-[110%]'}`}><div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 md:hidden"><div className="text-sm font-semibold text-slate-900">X-Thread</div><button type="button" onClick={() => setSidebarOpen(false)} className="rounded-xl border border-slate-200 p-2 text-slate-500"><X className="h-4 w-4" /></button></div><div className="px-4 pt-4 pb-3 border-b border-slate-100"><div className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-400 mb-3">{copy.welcome}</div><div className="flex items-center gap-3"><div className="relative h-16 w-16 overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-sm">{user.avatar ? <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-400 via-blue-500 to-cyan-500 text-xl font-black text-white">{initials(user.name)}</div>}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="truncate text-sm font-semibold text-slate-800">{user.name}</div><PersonalityBadge value={user.personalityType ?? null} /></div><div className="truncate text-xs text-slate-400 mt-0.5">{user.account ?? copy.account}</div></div><button type="button" onClick={() => fileInputRef.current?.click()} disabled={avatarBusy} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-400 transition hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50"><ImagePlus className="h-3.5 w-3.5" /></button></div><input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg,image/webp,image/gif" onChange={(event) => void handleAvatarPick(event)} className="hidden" /></div><div className="flex-1 overflow-y-auto px-2 py-2">{sections.map((item) => { const Icon = item.icon; const active = section === item.id; return <button key={item.id} type="button" onClick={() => { setSection(item.id); setSidebarOpen(false); }} className={`mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-all ${active ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}><span className="inline-flex items-center gap-2.5"><Icon className={`h-4 w-4 shrink-0 ${active ? 'text-white' : 'text-slate-400'}`} /><span className="text-[13px] font-medium">{item.label}</span></span></button>; })}</div><div className="border-t border-slate-100 px-3 py-3 space-y-1.5"><button type="button" onClick={() => void refreshOverview()} disabled={overviewBusy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={`h-3.5 w-3.5 ${overviewBusy ? 'animate-spin' : ''}`} />{copy.refresh}</button><button type="button" onClick={handleLogout} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 py-2 text-xs font-semibold text-white transition hover:bg-amber-600"><LogOut className="h-3.5 w-3.5" />{copy.signOut}</button><button type="button" onClick={() => void handleCancelAccount()} disabled={accountBusy} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />{copy.deleteAccount}</button></div></aside><main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-blue-200/60 bg-white/95 shadow-[0_32px_90px_rgba(30,58,138,0.08)] backdrop-blur"><div className="flex items-center justify-between border-b border-blue-100 px-4 py-4 bg-blue-50/40 md:hidden"><button type="button" onClick={() => setSidebarOpen(true)} className="rounded-xl border border-blue-200 bg-white p-2 text-blue-700"><Menu className="h-5 w-5" /></button><div className="truncate text-sm font-semibold text-blue-950">{sections.find((item) => item.id === section)?.label ?? copy.home}</div><div className="w-9" /></div><div className="hidden border-b border-blue-100 px-8 py-6 bg-blue-50/30 md:block"><div className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-600">{sections.find((item) => item.id === section)?.label ?? copy.home}</div><div className="mt-3 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-black tracking-tight text-blue-950">{sections.find((item) => item.id === section)?.label ?? copy.home}</h1><p className="mt-2 max-w-3xl text-sm leading-7 text-blue-800/70">{sections.find((item) => item.id === section)?.id === 'home' ? copy.homeDesc : ''}</p></div><div className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-4 py-2 text-sm font-medium text-blue-800"><Sparkles className="h-4 w-4 text-blue-600" />{copy.home}</div></div></div><div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 bg-white/50 md:px-8 md:py-8">{content()}</div></main></div></div>;
