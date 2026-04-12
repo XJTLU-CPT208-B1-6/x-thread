@@ -134,3 +134,12 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Local IDE / AI assistant config
+.ace-tool/
+.claude/
+.kiro/
+
+# Local runtime artifacts
+backend/storage/
+backend/uploads/

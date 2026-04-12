@@ -1,14 +1,13 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Bot,
-  LayoutPanelTop,
+  Clapperboard,
+  Gamepad2,
   Maximize2,
-  MessageSquare,
   Minimize2,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Send,
   Sparkles,
+  Users,
   Workflow,
   Files,
   ScrollText,
@@ -19,7 +18,6 @@ import { MindMap } from '../components/MindMap';
 import { PersonalityBadge } from '../components/PersonalityBadge';
 import { RemoteVoiceCallPanel } from '../components/RemoteVoiceCallPanel';
 import { TextWhiteboard } from '../components/TextWhiteboard';
-import { VoicePanel } from '../components/VoicePanel';
 import { useSocket } from '../hooks/useSocket';
 import { mapMindMapEdges, mapMindMapNodes } from '../lib/mindmap';
 import {
@@ -44,9 +42,9 @@ import { useUserStore } from '../stores/useUserStore';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
 import { SharedFile, SharedFileTree } from '../types/shared-file';
 import { ChatMessage } from '../types/socket-events';
+import { extractLatestAiSummary, resolveStageHint, type RemoteFeatureTab } from '../utils/remoteRoomUi';
 
-type FeatureTab = 'chat' | 'mindmap' | 'ai' | 'files' | 'whiteboard';
-type LayoutMode = 'split' | 'focus';
+type FeatureTab = RemoteFeatureTab;
 type MindMapResponse = { nodes?: MindMapApiNode[]; edges?: MindMapApiEdge[] } | null;
 
 const normalizeMessages = (messages: ChatMessage[]): ChatMessage[] =>
@@ -82,9 +80,6 @@ const downloadBlob = (blob: Blob, filename: string) => {
   window.URL.revokeObjectURL(url);
 };
 
-const toRangeStart = (value: string) => (value ? new Date(`${value}T00:00:00`).toISOString() : undefined);
-const toRangeEnd = (value: string) => (value ? new Date(`${value}T23:59:59`).toISOString() : undefined);
-
 export default function DiscussPageV2() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
@@ -96,6 +91,7 @@ export default function DiscussPageV2() {
         ? {
             roomChat: 'Room Chat',
             roomCode: 'Room Code',
+            online: 'Online',
             searchPlaceholder: 'Search chat keywords',
             search: 'Search History',
             searching: 'Searching...',
@@ -122,10 +118,24 @@ export default function DiscussPageV2() {
             dissolveFailed: 'Failed to dissolve room',
             companionOnline: 'Room pets',
             mentionHint: 'Anyone can mention a pet directly with @name.',
+            voiceVideo: 'Voice / Video',
+            game: 'Icebreak Game',
+            endDiscussion: 'End Discussion',
+            aiSummary: 'AI Live Summary',
+            aiSummaryEmpty: 'No AI summary yet. The discussion summary will appear here in real time.',
+            sendMessage: 'Send message...',
+            stageHintVoice: 'Live call room',
+            stageHintMap: 'Mind map workspace',
+            stageHintAi: 'AI deep discussion',
+            stageHintBoard: 'Collaborative whiteboard',
+            stageHintFiles: 'Shared files',
+            stageHintGame: 'Icebreak game',
+            gameComingSoon: 'Icebreak game panel is under preparation.',
           }
         : {
             roomChat: '房间聊天',
             roomCode: '房间号',
+            online: '在线人数',
             searchPlaceholder: '搜索聊天关键词',
             search: '查询历史',
             searching: '查询中...',
@@ -152,19 +162,33 @@ export default function DiscussPageV2() {
             dissolveFailed: '解散房间失败',
             companionOnline: '房间宠物',
             mentionHint: '成员可以直接通过 @名字 呼叫宠物。',
+            voiceVideo: '语音/视频',
+            game: '破冰游戏',
+            endDiscussion: '结束讨论',
+            aiSummary: 'AI 实时摘要',
+            aiSummaryEmpty: '暂未生成 AI 摘要，讨论进行中会在此实时更新要点。',
+            sendMessage: '发送消息...',
+            stageHintVoice: '实时语音会场',
+            stageHintMap: '思维导图工作区',
+            stageHintAi: 'AI 深度讨论',
+            stageHintBoard: '协作白板',
+            stageHintFiles: '共享文件',
+            stageHintGame: '破冰互动',
+            gameComingSoon: '破冰游戏面板正在准备中。',
           },
     [language],
   );
 
   const tabs = useMemo(
     () => [
-      { id: 'chat' as const, label: copy.roomChat, icon: MessageSquare },
+      { id: 'voice' as const, label: copy.voiceVideo, icon: Clapperboard },
       { id: 'mindmap' as const, label: language === 'en' ? 'Mind Map' : '思维导图', icon: Workflow },
       { id: 'ai' as const, label: 'AI', icon: Sparkles },
       { id: 'whiteboard' as const, label: language === 'en' ? 'Whiteboard' : '文字白板', icon: ScrollText },
       { id: 'files' as const, label: language === 'en' ? 'Files' : '文件共享', icon: Files },
+      { id: 'game' as const, label: copy.game, icon: Gamepad2 },
     ],
-    [copy.roomChat, language],
+    [copy.game, copy.voiceVideo, language],
   );
 
   const { currentRoom, setRoom, clearRoom } = useRoomStore();
@@ -172,35 +196,14 @@ export default function DiscussPageV2() {
   const { messages, setMessages, clear: clearMessages } = useChatStore();
   const { setNodes, setEdges, clear: clearMindMap } = useMindMapStore();
   const { board, setBoard, clear: clearWhiteboard } = useWhiteboardStore();
-  const [activeTab, setActiveTab] = useState<FeatureTab>('mindmap');
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('split');
-  const [isNarrowScreen, setIsNarrowScreen] = useState(false);
+  const [activeTab, setActiveTab] = useState<FeatureTab>('voice');
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   const [fileTree, setFileTree] = useState<SharedFileTree>({ folders: [], files: [] });
   const [filesLoading, setFilesLoading] = useState(false);
-  const [chatQuery, setChatQuery] = useState('');
-  const [chatFrom, setChatFrom] = useState('');
-  const [chatTo, setChatTo] = useState('');
-  const [chatBusy, setChatBusy] = useState(false);
-  const [chatError, setChatError] = useState('');
-  const [chatSearchActive, setChatSearchActive] = useState(false);
-  const [chatSearchResults, setChatSearchResults] = useState<ChatMessage[]>([]);
   const [roomActionBusy, setRoomActionBusy] = useState(false);
+  const [chatDraft, setChatDraft] = useState('');
 
   useSocket(currentRoom?.id);
-
-  useEffect(() => {
-    const handleResize = () => {
-      const narrow = window.innerWidth < 1024;
-      setIsNarrowScreen(narrow);
-      if (narrow) {
-        setLayoutMode('focus');
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   useEffect(() => {
     const syncFullscreen = () => setIsBrowserFullscreen(Boolean(document.fullscreenElement));
@@ -211,10 +214,7 @@ export default function DiscussPageV2() {
 
   const currentMember = useMemo(() => currentRoom?.members?.find((member) => member.userId === user?.id), [currentRoom?.members, user?.id]);
   const isOwner = currentMember?.role === 'OWNER';
-  const displayedMessages = chatSearchActive ? chatSearchResults : messages;
-  const activeCompanion = currentRoom?.botEnabled && currentRoom.botProfile ? currentRoom.botProfile : null;
-  const activeCompanions = currentRoom?.activeCompanions?.length ? currentRoom.activeCompanions : activeCompanion ? [activeCompanion] : [];
-  const useFocusLayout = isNarrowScreen || layoutMode === 'focus';
+  const displayedMessages = messages;
   const remoteVoiceEnabled = currentRoom?.mode === 'REMOTE';
 
   const loadSharedFiles = async (roomId: string) => {
@@ -224,13 +224,6 @@ export default function DiscussPageV2() {
     } finally {
       setFilesLoading(false);
     }
-  };
-
-  const loadLatestMessages = async (roomId: string) => {
-    const nextMessages = await chatService.getMessages(roomId, { take: 200 });
-    setMessages(normalizeMessages(nextMessages as ChatMessage[]));
-    setChatSearchActive(false);
-    setChatSearchResults([]);
   };
 
   useEffect(() => {
@@ -245,9 +238,6 @@ export default function DiscussPageV2() {
         clearMindMap();
         clearWhiteboard();
         setFileTree({ folders: [], files: [] });
-        setChatError('');
-        setChatSearchActive(false);
-        setChatSearchResults([]);
 
         const room = await roomService.getRoomByCode(code);
         if (cancelled) return;
@@ -291,49 +281,6 @@ export default function DiscussPageV2() {
     window.addEventListener('x-thread-room-dissolved', handleRoomDissolved);
     return () => window.removeEventListener('x-thread-room-dissolved', handleRoomDissolved);
   }, [code, copy, currentRoom?.id, currentRoom?.topic, clearRoom, navigate]);
-
-  const handleSearchMessages = async () => {
-    if (!currentRoom?.id) return;
-    if (!chatQuery.trim() && !chatFrom && !chatTo) {
-      setChatError('');
-      await loadLatestMessages(currentRoom.id);
-      return;
-    }
-    setChatBusy(true);
-    setChatError('');
-    try {
-      const nextMessages = await chatService.getMessages(currentRoom.id, {
-        take: 200,
-        query: chatQuery.trim() || undefined,
-        from: toRangeStart(chatFrom),
-        to: toRangeEnd(chatTo),
-      });
-      setChatSearchResults(normalizeMessages(nextMessages as ChatMessage[]));
-      setChatSearchActive(true);
-    } catch (error: any) {
-      setChatError(error?.response?.data?.message ?? copy.searchFailed);
-    } finally {
-      setChatBusy(false);
-    }
-  };
-
-  const handleResetSearch = async () => {
-    setChatQuery('');
-    setChatFrom('');
-    setChatTo('');
-    setChatError('');
-    if (currentRoom?.id) {
-      setChatBusy(true);
-      try {
-        await loadLatestMessages(currentRoom.id);
-      } finally {
-        setChatBusy(false);
-      }
-    } else {
-      setChatSearchActive(false);
-      setChatSearchResults([]);
-    }
-  };
 
   const handleAskAi = async (message: string, history: AiConversationMessage[], selectedFiles: AiSelectedFile[], settings: AiProviderSettings) => {
     if (!currentRoom?.id) throw new Error('Room is not ready');
@@ -418,80 +365,95 @@ export default function DiscussPageV2() {
     }
   };
 
-  const renderChatPanel = () => (
-    <div className="flex h-full min-h-0 flex-col bg-white">
-      <div className="shrink-0 border-b border-slate-200 bg-slate-100 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="font-semibold text-slate-800">{copy.roomChat}</span>
-          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{copy.roomCode} {code}</span>
-        </div>
-        <div className="mt-4 grid gap-2">
-          <input value={chatQuery} onChange={(event) => setChatQuery(event.target.value)} placeholder={copy.searchPlaceholder} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-          <div className="grid grid-cols-2 gap-2">
-            <input type="date" value={chatFrom} onChange={(event) => setChatFrom(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-            <input type="date" value={chatTo} onChange={(event) => setChatTo(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
-          </div>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => void handleSearchMessages()} disabled={chatBusy} className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">{chatBusy ? copy.searching : copy.search}</button>
-            <button type="button" onClick={() => void handleResetSearch()} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">{copy.reset}</button>
-          </div>
-          {chatSearchActive ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{copy.filtered}</div> : null}
-          {chatError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{chatError}</div> : null}
-        </div>
+  const handleSendChatDraft = () => {
+    const message = chatDraft.trim();
+    if (!message || !currentRoom?.id) {
+      return;
+    }
+    socketService.sendMessage(currentRoom.id, message);
+    setChatDraft('');
+  };
+
+  const latestAiSummary = useMemo(
+    () => extractLatestAiSummary(displayedMessages),
+    [displayedMessages],
+  );
+  const stageHint = resolveStageHint(activeTab, copy);
+
+
+  const renderRemoteSidebar = () => (
+    <aside className="flex h-full w-full flex-col rounded-2xl border border-[#1D2433] bg-[#0B1220] text-slate-100 shadow-[0_16px_30px_rgba(15,17,26,0.45)] lg:w-[320px] xl:w-[360px]">
+      <div className="flex items-center justify-between border-b border-[#1D2433] px-4 py-4">
+        <h3 className="text-lg font-semibold text-white">{copy.roomChat}</h3>
+        <span className="text-xs text-slate-400">{copy.roomCode} {code}</span>
       </div>
-
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-        {activeCompanions.length > 0 ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            <div className="font-semibold">{copy.companionOnline}: {activeCompanions.map((companion) => `${companion.name}${companion.emoji ?? ''}`).join(', ')}</div>
-            <div className="mt-1 text-emerald-700">{copy.mentionHint}</div>
-          </div>
-        ) : null}
-
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {displayedMessages.map((msg) => (
-          <div key={msg.id} className={`flex flex-col ${msg.msgType === 'ai_notify' ? 'items-center' : 'items-start'}`}>
+          <div key={msg.id} className={msg.msgType === 'ai_notify' ? 'rounded-xl bg-indigo-500/20 px-3 py-2 text-xs text-indigo-100' : 'rounded-xl bg-[#111A2D] px-3 py-2'}>
             {msg.msgType === 'ai_notify' ? (
-              <div className="max-w-xs rounded-full bg-yellow-100 px-3 py-1 text-center text-xs text-yellow-800 shadow-sm">{msg.content}</div>
-            ) : msg.botName ? (
-              <div className="relative max-w-[88%] rounded-2xl rounded-tl-sm border border-emerald-200 bg-gradient-to-br from-emerald-50 to-cyan-50 p-3 shadow-sm">
-                <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-emerald-700">
-                  <span className="text-base">{msg.botEmoji ?? '??'}</span>
-                  <span>{msg.botName}</span>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-emerald-600">Pet</span>
-                </div>
-                <div className="text-sm leading-relaxed text-slate-800">{msg.content}</div>
-                <div className="mt-1 text-right text-[10px] text-slate-400">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              <div className="flex items-start gap-2">
+                <Sparkles className="mt-0.5 h-3.5 w-3.5 text-indigo-300" />
+                <span>{msg.content}</span>
               </div>
             ) : (
-              <div className={`relative max-w-[88%] rounded-2xl p-3 shadow-sm ${msg.type === 'SYSTEM' ? 'rounded-tl-2xl bg-slate-100 text-slate-700' : 'rounded-tl-sm bg-blue-50 text-slate-800'}`}>
-                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-blue-600">
-                  <span>{msg.nickname || msg.authorId}</span>
+              <div>
+                <div className="mb-1 flex items-center gap-2 text-[11px] text-slate-300">
+                  <span className="font-semibold text-slate-100">{msg.nickname || msg.authorId}</span>
                   {msg.type !== 'SYSTEM' ? <PersonalityBadge value={msg.personalityType ?? null} /> : null}
                 </div>
-                <div className="text-sm leading-relaxed">{msg.content}</div>
-                <div className="mt-1 text-right text-[10px] text-slate-400">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="text-sm leading-relaxed text-slate-100">{msg.content}</div>
               </div>
             )}
           </div>
         ))}
-
-        {displayedMessages.length === 0 ? <div className="mt-10 text-center text-sm text-slate-400">{copy.noMessages}</div> : null}
+        {displayedMessages.length === 0 ? <div className="pt-8 text-center text-sm text-slate-400">{copy.noMessages}</div> : null}
+        <div className="rounded-xl border-l-4 border-[#6366F1] bg-[rgba(99,102,241,0.18)] px-3 py-3">
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-indigo-100">
+            <Sparkles className="h-3.5 w-3.5" />
+            {copy.aiSummary}
+          </div>
+          <div className="text-xs leading-relaxed text-indigo-50">{latestAiSummary?.content ?? copy.aiSummaryEmpty}</div>
+        </div>
       </div>
-
-      <VoicePanel embedded suggestedMention={activeCompanion?.name} suggestedEmoji={activeCompanion?.emoji} />
-    </div>
+      <div className="border-t border-[#1D2433] p-3">
+        <div className="flex items-center gap-2 rounded-xl border border-[#24304A] bg-[#111A2D] p-1.5">
+          <input value={chatDraft} onChange={(event) => setChatDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { handleSendChatDraft(); } }} placeholder={copy.sendMessage} className="w-full bg-transparent px-2 text-sm text-slate-100 outline-none placeholder:text-slate-500" />
+          <button type="button" onClick={handleSendChatDraft} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[#6366F1] text-white transition hover:bg-indigo-500">
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 
   const renderTabPanel = () => {
     switch (activeTab) {
-      case 'chat':
-        return renderChatPanel();
+      case 'voice':
+        return (
+          <div className="h-full min-h-0 p-3 md:p-4">
+            <RemoteVoiceCallPanel
+              roomId={currentRoom?.id}
+              enabled={remoteVoiceEnabled}
+              isOwner={isOwner}
+              roomMembers={currentRoom?.members ?? []}
+              currentUserId={user?.id}
+            />
+          </div>
+        );
       case 'ai':
         return <div className="h-full min-h-0 p-4 md:p-6"><AiQaPanel onAsk={handleAskAi} fileTree={fileTree} /></div>;
       case 'whiteboard':
         return <div className="h-full min-h-0 p-4 md:p-6">{currentRoom?.id ? <TextWhiteboard roomId={currentRoom.id} board={board} onBoardChange={setBoard} /> : null}</div>;
       case 'files':
         return <div className="h-full min-h-0 p-4 md:p-6"><FileSharePanel fileTree={fileTree} loading={filesLoading} onRefresh={() => currentRoom?.id ? loadSharedFiles(currentRoom.id) : Promise.resolve()} onUpload={handleUploadFile} onCreateFolder={handleCreateFolder} onRenameFolder={handleRenameFolder} onDownload={handleDownloadFile} onBatchDownload={handleBatchDownload} /></div>;
+      case 'game':
+        return (
+          <div className="h-full min-h-0 p-4 md:p-6">
+            <div className="flex h-full min-h-[280px] items-center justify-center rounded-2xl border border-[#DCE3FF] bg-white text-slate-500">
+              {copy.gameComingSoon}
+            </div>
+          </div>
+        );
       case 'mindmap':
       default:
         return <div className="h-full min-h-0 px-4 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4"><MindMap fileTree={fileTree} /></div>;
@@ -499,75 +461,61 @@ export default function DiscussPageV2() {
   };
 
   return (
-    <div ref={pageRef} className="flex min-h-[100dvh] flex-col overflow-hidden bg-slate-50 lg:h-[100dvh]">
-      <header className="z-10 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{copy.discussionRoom}</div>
-            <h1 className="mt-1 text-lg font-bold text-slate-900">{currentRoom?.topic || copy.unsetTopic}</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{currentRoom?.mode === 'REMOTE' ? copy.remote : copy.onsite}</span>
-            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-700">{isOwner ? copy.owner : copy.member}</span>
-            {activeCompanions.length > 0 ? <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs text-emerald-700">{activeCompanions.length} {copy.companionOnline}</span> : null}
-            <button type="button" onClick={() => setLayoutMode((current) => (current === 'split' ? 'focus' : 'split'))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 lg:inline-flex">
-              {useFocusLayout ? <PanelLeftOpen className="mr-2 h-4 w-4" /> : <PanelLeftClose className="mr-2 h-4 w-4" />}
-              {useFocusLayout ? copy.splitMode : copy.focusMode}
-            </button>
-            <button type="button" onClick={() => void toggleBrowserFullscreen()} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-              {isBrowserFullscreen ? <Minimize2 className="mr-2 inline h-4 w-4" /> : <Maximize2 className="mr-2 inline h-4 w-4" />}
-              {isBrowserFullscreen ? copy.exitFullscreen : copy.fullscreen}
-            </button>
-            {isOwner ? (
-              <button type="button" onClick={() => void handleDissolveRoom()} disabled={roomActionBusy} className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60">{copy.dissolve}</button>
-            ) : (
-              <button type="button" onClick={() => void handleLeaveRoom()} disabled={roomActionBusy} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">{copy.leave}</button>
-            )}
-            <button type="button" onClick={() => navigate(`/room/${code}/review`)} className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">{copy.finish}</button>
-          </div>
-        </div>
+    <div ref={pageRef} className="flex min-h-[100dvh] flex-col bg-[#F8FAFF]">
+      <header className="border-b border-[#E8ECFF] bg-white px-4 py-3 md:px-6">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6366F1]">{copy.discussionRoom}</div>
+        <h1 className="text-[36px] font-bold leading-none text-[#0B1454]">{currentRoom?.topic || copy.unsetTopic}</h1>
       </header>
 
-      {remoteVoiceEnabled ? (
-        <div className="border-b border-slate-200 bg-blue-50/70 px-4 py-4 md:px-6">
-          <RemoteVoiceCallPanel roomId={currentRoom?.id} enabled={remoteVoiceEnabled} isOwner={isOwner} />
-        </div>
-      ) : null}
-
-      {useFocusLayout ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white/90 px-4 py-3 md:px-6">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-          <div className="min-h-0 flex-1 bg-gradient-to-br from-blue-50/60 to-cyan-50/40">{renderTabPanel()}</div>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-          <aside className="relative z-10 flex w-[380px] min-w-[340px] flex-col border-r border-slate-200 bg-white shadow-sm">{renderChatPanel()}</aside>
-          <main className="relative flex min-w-0 flex-1 flex-col bg-gradient-to-br from-blue-50/60 to-cyan-50/40">
-            <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white/80 px-6 py-3 backdrop-blur">
-              {tabs.filter((tab) => tab.id !== 'chat').map((tab) => {
+      <div className="px-4 pb-4 pt-3 md:px-6 md:pb-6 md:pt-4">
+        <div className="rounded-2xl border border-[#1D2433] bg-[#0F111A] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-white">
+              <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-xl font-bold">{currentRoom?.topic || copy.unsetTopic}</span>
+              <span className="text-sm text-slate-400">ID: {code}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#1C2435] px-2 py-1 text-xs font-medium text-slate-200">
+                <Users className="h-3 w-3" />
+                {copy.online} {(currentRoom?.members?.length ?? 0)}/{currentRoom?.maxMembers ?? 0}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
-                  <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>
-                    <Icon className="h-4 w-4" />
+                  <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition md:text-sm ${activeTab === tab.id ? 'bg-[#6366F1] text-white' : 'bg-[#1C2435] text-slate-300 hover:bg-[#252F45]'}`}>
+                    <Icon className="h-3.5 w-3.5" />
                     {tab.label}
                   </button>
                 );
               })}
+              {isOwner ? (
+                <button type="button" onClick={() => void handleDissolveRoom()} disabled={roomActionBusy} className="rounded-full bg-[#F43F5E] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-500 disabled:opacity-60 md:text-sm">
+                  {copy.endDiscussion}
+                </button>
+              ) : (
+                <button type="button" onClick={() => void handleLeaveRoom()} disabled={roomActionBusy} className="rounded-full bg-[#F43F5E] px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-rose-500 disabled:opacity-60 md:text-sm">
+                  {copy.leave}
+                </button>
+              )}
+              <button type="button" onClick={() => void toggleBrowserFullscreen()} className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 md:text-sm">
+                {isBrowserFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                {isBrowserFullscreen ? copy.exitFullscreen : copy.fullscreen}
+              </button>
             </div>
-            <div className="min-h-0 flex-1">{renderTabPanel()}</div>
-          </main>
+          </div>
         </div>
-      )}
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 md:px-6 md:pb-6 lg:flex-row">
+        <main className="min-h-[48vh] min-w-0 flex-1 overflow-hidden rounded-2xl border border-[#E6EAFF] bg-white">
+          <div className="border-b border-[#EEF1FF] px-4 py-2 text-xs font-semibold text-[#6366F1]">{stageHint}</div>
+          {renderTabPanel()}
+        </main>
+        <div className="h-[50vh] lg:h-auto">
+          {renderRemoteSidebar()}
+        </div>
+      </div>
     </div>
   );
 }

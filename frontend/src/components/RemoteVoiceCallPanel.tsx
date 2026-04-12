@@ -1,7 +1,9 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Hand, Mic, MicOff, MonitorUp, MoreHorizontal, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
 import { socketService } from '../services/socket-service';
 import { useLanguageStore } from '../stores/useLanguageStore';
+import type { RoomMember } from '../types/room';
+import { buildVoiceCards } from '../utils/remoteRoomUi';
 
 type PeerMeta = {
   socketId: string;
@@ -35,10 +37,14 @@ export function RemoteVoiceCallPanel({
   roomId,
   enabled,
   isOwner = false,
+  roomMembers = [],
+  currentUserId,
 }: {
   roomId?: string;
   enabled: boolean;
   isOwner?: boolean;
+  roomMembers?: RoomMember[];
+  currentUserId?: string;
 }) {
   const { language } = useLanguageStore();
   const copy = useMemo(
@@ -64,6 +70,17 @@ export function RemoteVoiceCallPanel({
             currentSpeaker: 'Current speaker',
             passTurn: 'Pass to Next Speaker',
             turnEnds: 'Turn ends in',
+            stageTip: 'Live voice room',
+            online: 'online',
+            offline: 'offline',
+            mute: 'Mute',
+            unmute: 'Unmute',
+            cameraOn: 'Video On',
+            cameraOff: 'Video Off',
+            share: 'Share',
+            raised: 'Raised',
+            raise: 'Raise',
+            more: 'More',
             unsupported: 'This browser does not support real-time voice calling.',
             denied: 'Unable to access microphone.',
             disabled: 'Voice call is available only in remote mode.',
@@ -88,6 +105,17 @@ export function RemoteVoiceCallPanel({
             currentSpeaker: '当前发言人',
             passTurn: '传给下一位',
             turnEnds: '剩余时间',
+            stageTip: '实时语音会场',
+            online: '在线',
+            offline: '离线',
+            mute: '静音',
+            unmute: '开麦',
+            cameraOn: '视频开',
+            cameraOff: '视频关',
+            share: '共享',
+            raised: '已举手',
+            raise: '举手',
+            more: '更多',
             unsupported: '当前浏览器不支持实时语音通话。',
             denied: '无法访问麦克风。',
             disabled: '语音通话只在远程模式下可用。',
@@ -108,6 +136,8 @@ export function RemoteVoiceCallPanel({
   const [turnEndsAt, setTurnEndsAt] = useState<number | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [raisedHand, setRaisedHand] = useState(false);
 
   useEffect(() => {
     joinedRef.current = joined;
@@ -362,6 +392,10 @@ export function RemoteVoiceCallPanel({
   const isCurrentSpeaker = joined && currentSpeakerSocketId === mySocketId;
   const activeSpeaker = participants.find((participant) => participant.socketId === currentSpeakerSocketId) ?? null;
   const micLockedByQueue = joined && voiceMode === 'QUEUE' && !isCurrentSpeaker;
+  const cards = useMemo(
+    () => buildVoiceCards(roomMembers, participants, currentUserId),
+    [currentUserId, participants, roomMembers],
+  );
 
   useEffect(() => {
     if (micLockedByQueue && micEnabled) {
@@ -389,53 +423,89 @@ export function RemoteVoiceCallPanel({
   }
 
   return (
-    <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="relative flex h-full min-h-[540px] flex-col overflow-hidden rounded-2xl border border-[#1D2433] bg-[#0F111A]">
+      <div className="flex items-center justify-between border-b border-[#1D2433] px-4 py-3 text-slate-200">
         <div>
-          <div className="text-sm font-semibold text-slate-900">{copy.title}</div>
-          <p className="mt-1 text-sm text-slate-500">{copy.desc}</p>
+          <div className="text-sm font-semibold text-white">{copy.title}</div>
+          <div className="text-xs text-slate-400">{copy.stageTip}</div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {!joined ? (
-            <button type="button" onClick={() => void joinCall()} disabled={joining} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"><Phone className="h-4 w-4" />{joining ? copy.joining : copy.join}</button>
-          ) : (
-            <>
-              <button type="button" onClick={toggleMic} disabled={micLockedByQueue} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${micEnabled ? 'border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'} disabled:cursor-not-allowed disabled:opacity-50`}>
-                {micEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-                {micEnabled ? copy.microphoneOn : copy.microphoneOff}
-              </button>
-              <button type="button" onClick={() => void leaveCall()} className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"><PhoneOff className="h-4 w-4" />{copy.leave}</button>
-            </>
-          )}
-        </div>
+        {!joined ? (
+          <button type="button" onClick={() => void joinCall()} disabled={joining} className="inline-flex items-center gap-2 rounded-lg bg-[#6366F1] px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50">
+            <Phone className="h-4 w-4" />
+            {joining ? copy.joining : copy.join}
+          </button>
+        ) : (
+          <div className="text-xs text-emerald-300">{copy.connected}</div>
+        )}
       </div>
 
-      {joined && isOwner ? (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="mb-2 text-sm font-semibold text-slate-700">{copy.ownerControls}</div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => roomId && socketService.setVoiceCallMode(roomId, 'OPEN')} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${voiceMode === 'OPEN' ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'}`}>{copy.modeOpen}</button>
-            <button type="button" onClick={() => roomId && socketService.setVoiceCallMode(roomId, 'QUEUE')} className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${voiceMode === 'QUEUE' ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'}`}>{copy.modeQueue}</button>
-          </div>
-          {voiceMode === 'QUEUE' ? <div className="mt-2 text-xs text-slate-500">{copy.queueDesc}</div> : null}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {cards.map((card) => {
+            const initials = (card.label || '?').trim().slice(0, 2).toUpperCase();
+            const isSpeaker = card.socketId && card.socketId === currentSpeakerSocketId;
+            return (
+              <div key={card.id} className={`rounded-2xl border p-4 transition ${isSpeaker ? 'border-[#6366F1] bg-[linear-gradient(145deg,#1B2440_0%,#1D2442_100%)]' : 'border-[#232B3D] bg-[linear-gradient(145deg,#182030_0%,#111827_100%)]'}`}>
+                <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#6366F1] text-sm font-bold text-white">{initials}</div>
+                <div className="text-sm font-semibold text-white">{card.label}{card.isSelf ? ' (你)' : ''}</div>
+                <div className={`mt-1 text-xs ${card.isOnline ? 'text-emerald-300' : 'text-slate-400'}`}>{card.isOnline ? copy.online : copy.offline}</div>
+              </div>
+            );
+          })}
         </div>
-      ) : null}
 
-      {error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div> : null}
+        {joined && isOwner ? (
+          <div className="mt-4 rounded-xl border border-[#2A3348] bg-[#121B2C] p-3">
+            <div className="mb-2 text-xs font-semibold text-slate-300">{copy.ownerControls}</div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => roomId && socketService.setVoiceCallMode(roomId, 'OPEN')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${voiceMode === 'OPEN' ? 'bg-[#6366F1] text-white' : 'bg-[#1E273B] text-slate-300 hover:bg-[#2A3550]'}`}>{copy.modeOpen}</button>
+              <button type="button" onClick={() => roomId && socketService.setVoiceCallMode(roomId, 'QUEUE')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${voiceMode === 'QUEUE' ? 'bg-[#6366F1] text-white' : 'bg-[#1E273B] text-slate-300 hover:bg-[#2A3550]'}`}>{copy.modeQueue}</button>
+            </div>
+            {voiceMode === 'QUEUE' ? <div className="mt-2 text-xs text-slate-400">{copy.queueDesc}</div> : null}
+          </div>
+        ) : null}
 
-      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700"><Volume2 className="h-4 w-4" />{copy.participants}</div>
-        {participants.length === 0 ? <div className="text-sm text-slate-500">{copy.idle}</div> : <div className="flex flex-wrap gap-2">{participants.map((participant) => <div key={participant.socketId} className={`rounded-full px-3 py-1.5 text-sm shadow-sm ${participant.socketId === currentSpeakerSocketId ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'}`}>{participant.nickname}</div>)}</div>}
-        {joined ? <div className="mt-3 text-xs font-medium text-emerald-700">{copy.connected}</div> : null}
         {joined && voiceMode === 'QUEUE' ? (
-          <div className="mt-3 space-y-1 text-xs text-slate-600">
+          <div className="mt-3 rounded-xl border border-[#2A3348] bg-[#121B2C] px-3 py-2 text-xs text-slate-300">
             <div>{copy.currentSpeaker}: {activeSpeaker?.nickname ?? '--'}</div>
             <div>{isCurrentSpeaker ? copy.yourTurn : copy.waitingTurn}</div>
             {remainingSeconds !== null ? <div>{copy.turnEnds}: {Math.floor(remainingSeconds / 60)}:{`${remainingSeconds % 60}`.padStart(2, '0')}</div> : null}
-            {isCurrentSpeaker ? <button type="button" onClick={() => roomId && socketService.passVoiceCallTurn(roomId)} className="mt-2 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">{copy.passTurn}</button> : null}
+            {isCurrentSpeaker ? <button type="button" onClick={() => roomId && socketService.passVoiceCallTurn(roomId)} className="mt-1 rounded-lg bg-[#6366F1] px-2 py-1 font-semibold text-white">{copy.passTurn}</button> : null}
           </div>
         ) : null}
+        {error ? <div className="mt-3 rounded-xl border border-rose-400/50 bg-rose-500/20 px-3 py-2 text-xs text-rose-200">{error}</div> : null}
       </div>
+
+      {joined ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-[#283249] bg-[#182033]/90 p-2 backdrop-blur">
+            <button type="button" onClick={toggleMic} disabled={micLockedByQueue} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${micEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'} disabled:opacity-50`}>
+              {micEnabled ? <Mic className="mb-1 h-4 w-4" /> : <MicOff className="mb-1 h-4 w-4" />}
+              {micEnabled ? copy.mute : copy.unmute}
+            </button>
+            <button type="button" onClick={() => setVideoEnabled((current) => !current)} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${videoEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'}`}>
+              {videoEnabled ? <Video className="mb-1 h-4 w-4" /> : <VideoOff className="mb-1 h-4 w-4" />}
+              {videoEnabled ? copy.cameraOn : copy.cameraOff}
+            </button>
+            <button type="button" className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#24324C] text-[10px] font-semibold text-white">
+              <MonitorUp className="mb-1 h-4 w-4" />
+              {copy.share}
+            </button>
+            <button type="button" onClick={() => setRaisedHand((current) => !current)} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${raisedHand ? 'bg-[#6366F1] text-white' : 'bg-[#24324C] text-white'}`}>
+              <Hand className="mb-1 h-4 w-4" />
+              {raisedHand ? copy.raised : copy.raise}
+            </button>
+            <button type="button" className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#24324C] text-[10px] font-semibold text-white">
+              <MoreHorizontal className="mb-1 h-4 w-4" />
+              {copy.more}
+            </button>
+            <button type="button" onClick={() => void leaveCall()} className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#F43F5E] text-[10px] font-semibold text-white">
+              <PhoneOff className="mb-1 h-4 w-4" />
+              {copy.leave}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

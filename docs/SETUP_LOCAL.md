@@ -48,7 +48,23 @@ cd E:/XJTLU/大三/CPT208/cw/x-thread
 pnpm install
 ```
 
-### 第三步：初始化数据库表
+### 第三步：创建后端环境变量
+
+克隆仓库后，`backend/.env` 不会自动生成。先从根目录 `.env.example` 复制一份：
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example backend/.env
+```
+
+macOS / Linux：
+
+```bash
+cp .env.example backend/.env
+```
+
+### 第四步：初始化数据库表
 
 ```bash
 cd backend
@@ -57,21 +73,21 @@ npx prisma generate
 cd ..
 ```
 
-### 第四步：启动后端
+### 第五步：启动后端
 
 ```bash
 cd E:/XJTLU/大三/CPT208/cw/x-thread
 pnpm dev:backend
 ```
 
-### 第五步：启动前端
+### 第六步：启动前端
 
 ```bash
 cd E:/XJTLU/大三/CPT208/cw/x-thread
 pnpm dev:frontend
 ```
 
-### 第六步：打开浏览器
+### 第七步：打开浏览器
 
 访问：`http://localhost:5173`
 
@@ -85,6 +101,14 @@ pnpm dev:frontend
 
 ```env
 DATABASE_URL="postgresql://xthread:xthread_dev@localhost:5432/xthread"
+```
+
+### `prisma migrate dev` 报 `Environment variable not found: DATABASE_URL`
+
+说明 `backend/.env` 不存在。先执行：
+
+```powershell
+Copy-Item .env.example backend/.env
 ```
 
 ### `prisma migrate dev` 报 `database "xthread" does not exist`

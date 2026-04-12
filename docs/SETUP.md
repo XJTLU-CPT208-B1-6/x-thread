@@ -43,7 +43,24 @@ docker compose ps
 
 ## 第三步：配置后端环境变量
 
-`backend/.env` 已从 `.env.example` 复制，默认值可直接使用。
+克隆仓库后，`backend/.env` 不会自动生成。先从根目录 `.env.example` 复制一份：
+
+Windows PowerShell：
+```powershell
+Copy-Item .env.example backend/.env
+```
+
+macOS / Linux：
+```bash
+cp .env.example backend/.env
+```
+
+确认文件创建成功：
+```bash
+dir backend\.env
+```
+
+默认值可直接使用。
 
 如需配置 AI 功能，编辑 `backend/.env`，填入 API Key：
 ```env
@@ -134,6 +151,16 @@ docker compose up -d
 - 用户名：`xthread`
 - 密码：`xthread_dev`
 - 数据库：`xthread`
+
+### `prisma migrate dev` 报 `Environment variable not found: DATABASE_URL`
+
+说明 `backend/.env` 不存在，或当前终端不在项目根目录执行复制命令。重新执行：
+
+```powershell
+Copy-Item .env.example backend/.env
+cd backend
+npx prisma migrate dev --name init
+```
 
 ### 前端白屏或接口 404
 
