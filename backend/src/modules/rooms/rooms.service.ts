@@ -24,6 +24,9 @@ const DEFAULT_MAX_MEMBERS = 8;
 const MIN_ROOM_MEMBERS = 1;
 const MAX_ROOM_MEMBERS = 50;
 const ROOM_CODE_MAX_ATTEMPTS = 10;
+const BASE_ROOM_TAGS = ['Study', 'Casual', 'Deadline', 'Brainstorm', 'Support', 'Project'];
+const MAX_TAG_LENGTH = 20;
+const TAG_NAME_PATTERN = /^[A-Za-z0-9\u4e00-\u9fa5 _-]+$/;
 
 @Injectable()
 export class RoomsService {
@@ -484,6 +487,30 @@ export class RoomsService {
     return rooms.map((r) => serializeRoom(r));
   }
 
+  async listRoomTags() {
+    const rooms = await this.prisma.room.findMany({
+      where: {
+        phase: { not: RoomPhase.CLOSED },
+      },
+      select: {
+        tags: true,
+      },
+      take: 200,
+      orderBy: { createdAt: 'desc' },
+    });
+    const collected = rooms.flatMap((room) => room.tags ?? []);
+    return {
+      tags: this.mergeUniqueTags([...BASE_ROOM_TAGS, ...collected], false),
+    };
+  }
+
+  async createTag(user: AuthenticatedUser, dto: { name: string }) {
+    this.ensureRegisteredAccount(user);
+    const existing = await this.listRoomTags();
+    const tag = this.normalizeSingleTag(dto.name, existing.tags, true, true);
+    return { tag };
+  }
+
   async toggleLock(roomId: string, userId: string) {
     await this.ensureOwner(roomId, userId);
     const room = await this.prisma.room.findUnique({ where: { id: roomId } });
@@ -648,7 +675,50 @@ export class RoomsService {
       throw new BadRequestException('tags must be an array of strings');
     }
 
-    return Array.from(new Set(tags.map((tag) => `${tag}`.trim()).filter(Boolean)));
+    return this.mergeUniqueTags(tags.map((tag) => `${tag}`.trim()).filter(Boolean), true);
+  }
+
+  private mergeUniqueTags(tags: string[], strict: boolean) {
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const tag of tags) {
+      const normalized = this.normalizeSingleTag(tag, unique, false, strict);
+      if (!normalized) continue;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(normalized);
+    }
+    return unique;
+  }
+
+  private normalizeSingleTag(
+    tag: string,
+    existingTags: string[],
+    enforceUnique: boolean,
+    strict: boolean,
+  ) {
+    const normalized = `${tag}`.trim().replace(/\s+/g, ' ');
+    if (!normalized) return '';
+    if (normalized.length > MAX_TAG_LENGTH) {
+      if (!strict) return '';
+      throw new BadRequestException(
+        `tag length must be ${MAX_TAG_LENGTH} characters or fewer`,
+      );
+    }
+    if (!TAG_NAME_PATTERN.test(normalized)) {
+      if (!strict) return '';
+      throw new BadRequestException(
+        'tag only supports letters, numbers, spaces, underscores and hyphens',
+      );
+    }
+    if (
+      enforceUnique &&
+      existingTags.some((existingTag) => existingTag.toLowerCase() === normalized.toLowerCase())
+    ) {
+      throw new BadRequestException('tag already exists');
+    }
+    return normalized;
   }
 
   private isUniqueConstraintError(error: unknown) {

@@ -30,6 +30,18 @@ export class RoomsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('tags')
+  listTags() {
+    return this.roomsService.listRoomTags();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('tags')
+  createTag(@CurrentUser() user: AuthenticatedUser, @Body() dto: { name: string }) {
+    return this.roomsService.createTag(user, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post()
   create(
     @CurrentUser() user: AuthenticatedUser,

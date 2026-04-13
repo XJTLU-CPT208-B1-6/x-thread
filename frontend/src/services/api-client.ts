@@ -248,6 +248,14 @@ export const roomService = {
     const response = await api.get('/rooms/lobby');
     return response.data as any[];
   },
+  listTags: async () => {
+    const response = await api.get('/rooms/tags');
+    return response.data as { tags: string[] };
+  },
+  createTag: async (name: string) => {
+    const response = await api.post('/rooms/tags', { name });
+    return response.data as { tag: string };
+  },
   toggleLock: async (id: string) => {
     const response = await api.post(`/rooms/${id}/lock`);
     return response.data as { room: any };

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { roomService } from '../services/api-client';
@@ -6,6 +6,7 @@ import { socketService } from '../services/socket-service';
 import { useRoomStore } from '../stores/useRoomStore';
 import { useUserStore } from '../stores/useUserStore';
 import { resolveRoomPathFromPhase } from '../utils/roomUtils';
+import { BASE_ROOM_TAGS, sanitizeCustomTag, validateCustomTag } from '../utils/roomTags';
 
 type LobbyRoom = {
   id: string;
@@ -22,7 +23,6 @@ type LobbyRoom = {
   createdAt: string;
 };
 
-const VIBE_TAGS = ['Study', 'Casual', 'Deadline', 'Brainstorm', 'Support', 'Project'];
 const TAG_COLORS: Record<string, string> = {
   Study: 'bg-blue-100 text-blue-700',
   Casual: 'bg-green-100 text-green-700',
@@ -73,9 +73,9 @@ export function GroupLobbyPanel() {
   const { setRoom } = useRoomStore();
   const { user } = useUserStore();
   const copy = useMemo(() => language === 'en' ? {
-    title: 'Group Lobby', subtitle: 'Create a room, discover public rooms, and jump in immediately.', createRoom: 'Create Room', refresh: 'Refresh', search: 'Search by topic or room code', clear: 'Clear', myRooms: 'Rooms I Joined', allRooms: 'All Public Rooms', empty: 'No rooms match your current filters', createFirst: 'Create the first room', join: 'Join', joining: 'Joining...', entering: 'Entering...', backToRoom: 'Back to Room', roomLocked: 'Room Locked', roomFull: 'Room Full', locked: 'Locked', open: 'Open', members: 'members', full: 'Full', phaseLobby: 'In Lobby', phaseIcebreak: 'Icebreak', phaseDiscuss: 'Discussing', phaseReview: 'Review', createTitle: 'Create a New Room', topic: 'Discussion Topic', topicRequired: 'Please enter a topic', maxMembers: 'Max Members', tags: 'Tags', publicLabel: 'Public in Group Lobby', publicDesc: 'If enabled, others can discover this room in the public lobby before it is dissolved.', submit: 'Create and Enter', submitting: 'Creating...', createFailed: 'Failed to create room', joinFailed: 'Failed to join room', lockFailed: 'Failed to update room lock',
+    title: 'Group Lobby', subtitle: 'Create a room, discover public rooms, and jump in immediately.', createRoom: 'Create Room', refresh: 'Refresh', search: 'Search by topic or room code', clear: 'Clear', myRooms: 'Rooms I Joined', allRooms: 'All Public Rooms', empty: 'No rooms match your current filters', createFirst: 'Create the first room', join: 'Join', joining: 'Joining...', entering: 'Entering...', backToRoom: 'Back to Room', roomLocked: 'Room Locked', roomFull: 'Room Full', locked: 'Locked', open: 'Open', members: 'members', full: 'Full', phaseLobby: 'In Lobby', phaseIcebreak: 'Icebreak', phaseDiscuss: 'Discussing', phaseReview: 'Review', createTitle: 'Create a New Room', topic: 'Discussion Topic', topicRequired: 'Please enter a topic', roomMode: 'Room Mode', roomModeOnsite: 'On-site', roomModeRemote: 'Remote', maxMembers: 'Max Members', tags: 'Tags', customTagPlaceholder: 'Add custom tag', addTag: 'Add', publicLabel: 'Public in Group Lobby', publicDesc: 'If enabled, others can discover this room in the public lobby before it is dissolved.', submit: 'Create and Enter', submitting: 'Creating...', createFailed: 'Failed to create room', joinFailed: 'Failed to join room', lockFailed: 'Failed to update room lock',
   } : {
-    title: '组队大厅', subtitle: '创建房间、发现公开房间、随时加入讨论。', createRoom: '创建房间', refresh: '刷新', search: '按主题或房间码搜索', clear: '清除', myRooms: '我已加入的房间', allRooms: '所有公开房间', empty: '当前筛选条件下没有房间', createFirst: '创建第一个房间', join: '加入', joining: '加入中...', entering: '进入中...', backToRoom: '回到房间', roomLocked: '房间已锁定', roomFull: '房间已满', locked: '已锁定', open: '开放中', members: '人', full: '已满', phaseLobby: '大厅等待中', phaseIcebreak: '破冰中', phaseDiscuss: '讨论中', phaseReview: '复盘中', createTitle: '创建新房间', topic: '讨论主题', topicRequired: '请输入讨论主题', maxMembers: '人数上限', tags: '标签', publicLabel: '公开到组队大厅', publicDesc: '开启后其他人可以在大厅里直接发现并加入该房间。', submit: '创建并进入', submitting: '创建中...', createFailed: '创建房间失败', joinFailed: '加入房间失败', lockFailed: '更新锁定状态失败',
+    title: '组队大厅', subtitle: '创建房间、发现公开房间、随时加入讨论。', createRoom: '创建房间', refresh: '刷新', search: '按主题或房间码搜索', clear: '清除', myRooms: '我已加入的房间', allRooms: '所有公开房间', empty: '当前筛选条件下没有房间', createFirst: '创建第一个房间', join: '加入', joining: '加入中...', entering: '进入中...', backToRoom: '回到房间', roomLocked: '房间已锁定', roomFull: '房间已满', locked: '已锁定', open: '开放中', members: '人', full: '已满', phaseLobby: '大厅等待中', phaseIcebreak: '破冰中', phaseDiscuss: '讨论中', phaseReview: '复盘中', createTitle: '创建新房间', topic: '讨论主题', topicRequired: '请输入讨论主题', roomMode: '房间模式', roomModeOnsite: '线下', roomModeRemote: '远程', maxMembers: '人数上限', tags: '标签', customTagPlaceholder: '新增自定义标签', addTag: '添加', publicLabel: '公开到组队大厅', publicDesc: '开启后其他人可以在大厅里直接发现并加入该房间。', submit: '创建并进入', submitting: '创建中...', createFailed: '创建房间失败', joinFailed: '加入房间失败', lockFailed: '更新锁定状态失败',
   }, [language]);
 
   const [rooms, setRooms] = useState<LobbyRoom[]>([]);
@@ -85,9 +85,17 @@ export function GroupLobbyPanel() {
   const [search, setSearch] = useState('');
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [createForm, setCreateForm] = useState({ topic: '', maxMembers: 6, isPublic: true, selectedTags: [] as string[] });
+  const [createForm, setCreateForm] = useState({
+    topic: '',
+    mode: 'ONSITE' as 'ONSITE' | 'REMOTE',
+    maxMembers: 8,
+    isPublic: true,
+    selectedTags: [] as string[],
+  });
+  const [customTagInput, setCustomTagInput] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [availableTags, setAvailableTags] = useState<string[]>(BASE_ROOM_TAGS);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchRooms = async () => {
@@ -100,6 +108,11 @@ export function GroupLobbyPanel() {
 
   useEffect(() => {
     socketService.connect();
+    void roomService.listTags().then((payload) => {
+      if (Array.isArray(payload?.tags) && payload.tags.length) {
+        setAvailableTags(payload.tags);
+      }
+    }).catch(() => undefined);
     void fetchRooms();
     pollRef.current = setInterval(() => void fetchRooms(), 5000);
     const handleRemoved = (event: Event) => {
@@ -148,9 +161,16 @@ export function GroupLobbyPanel() {
     setCreating(true);
     setCreateError('');
     try {
-      const result = await roomService.createRoom({ topic: createForm.topic.trim(), maxMembers: createForm.maxMembers, isPublic: createForm.isPublic, tags: createForm.selectedTags });
-      setRoom(result.room);
-      navigate(resolveRoomPathFromPhase(result.room.code, result.room.phase));
+      const result = await roomService.createRoom({
+        topic: createForm.topic.trim(),
+        mode: createForm.mode,
+        maxMembers: createForm.maxMembers,
+        isPublic: createForm.isPublic,
+        tags: createForm.selectedTags,
+      });
+      const room = result.room.room ?? result.room;
+      setRoom(room);
+      navigate(resolveRoomPathFromPhase(room.code, room.phase));
     } catch (e: any) {
       setCreateError(e?.response?.data?.message ?? copy.createFailed);
     } finally {
@@ -159,6 +179,31 @@ export function GroupLobbyPanel() {
   };
 
   const toggleTag = (tag: string) => setCreateForm((current) => ({ ...current, selectedTags: current.selectedTags.includes(tag) ? current.selectedTags.filter((item) => item !== tag) : [...current.selectedTags, tag] }));
+  const selectableTags = useMemo(
+    () => Array.from(new Set([...availableTags, ...createForm.selectedTags])),
+    [availableTags, createForm.selectedTags],
+  );
+  const addCustomTag = () => {
+    const normalized = sanitizeCustomTag(customTagInput);
+    const preCheckError = validateCustomTag(normalized, selectableTags, language);
+    if (preCheckError) {
+      setCreateError(preCheckError);
+      return;
+    }
+    roomService.createTag(normalized).then((payload) => {
+      setAvailableTags((current) => Array.from(new Set([...current, payload.tag])));
+      setCreateForm((current) => ({
+        ...current,
+        selectedTags: current.selectedTags.includes(payload.tag)
+          ? current.selectedTags
+          : [...current.selectedTags, payload.tag],
+      }));
+      setCreateError('');
+      setCustomTagInput('');
+    }).catch((error: any) => {
+      setCreateError(error?.response?.data?.message ?? copy.createFailed);
+    });
+  };
 
   const filteredRooms = rooms.filter((room) => {
     if (filterTag && !room.tags.includes(filterTag)) return false;
@@ -182,7 +227,7 @@ export function GroupLobbyPanel() {
 
       <div className="flex flex-wrap items-center gap-2">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
-        {VIBE_TAGS.map((tag) => <button key={tag} type="button" onClick={() => setFilterTag(filterTag === tag ? null : tag)} className={`rounded-full px-2.5 py-1 text-xs font-semibold transition border ${filterTag === tag ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'}`}>{tag}</button>)}
+        {BASE_ROOM_TAGS.map((tag) => <button key={tag} type="button" onClick={() => setFilterTag(filterTag === tag ? null : tag)} className={`rounded-full px-2.5 py-1 text-xs font-semibold transition border ${filterTag === tag ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'}`}>{tag}</button>)}
         {(filterTag || search) ? <button type="button" onClick={() => { setFilterTag(null); setSearch(''); }} className="text-xs text-slate-400 underline hover:text-slate-600">{copy.clear}</button> : null}
       </div>
 
@@ -199,8 +244,65 @@ export function GroupLobbyPanel() {
             <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-black text-slate-800">{copy.createTitle}</h2><button type="button" onClick={() => setShowCreate(false)} className="text-xl leading-none text-slate-400 hover:text-slate-600">×</button></div>
             <div className="space-y-4">
               <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.topic}</label><input value={createForm.topic} onChange={(event) => setCreateForm((current) => ({ ...current, topic: event.target.value }))} className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" /></div>
-              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.maxMembers}</label><div className="flex gap-2">{[2,4,6,8,10].map((value) => <button key={value} type="button" onClick={() => setCreateForm((current) => ({ ...current, maxMembers: value }))} className={`flex-1 rounded-xl py-2 text-sm font-bold transition border ${createForm.maxMembers === value ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'}`}>{value}</button>)}</div></div>
-              <div><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.tags}</label><div className="flex flex-wrap gap-2">{VIBE_TAGS.map((tag) => <button key={tag} type="button" onClick={() => toggleTag(tag)} className={`rounded-full px-3 py-1 text-xs font-semibold transition border ${createForm.selectedTags.includes(tag) ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-violet-300'}`}>{tag}</button>)}</div></div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.roomMode}</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: 'ONSITE' as const, label: copy.roomModeOnsite },
+                    { value: 'REMOTE' as const, label: copy.roomModeRemote },
+                  ]).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setCreateForm((current) => ({ ...current, mode: option.value }))}
+                      className={`rounded-xl py-2 text-sm font-bold transition border ${
+                        createForm.mode === option.value
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.maxMembers}</label>
+                <input
+                  type="number"
+                  min={2}
+                  max={20}
+                  value={createForm.maxMembers}
+                  onChange={(event) =>
+                    setCreateForm((current) => ({
+                      ...current,
+                      maxMembers: Math.max(2, Math.min(20, Number(event.target.value) || 8)),
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{copy.tags}</label>
+                <div className="flex flex-wrap gap-2">
+                  {selectableTags.map((tag) => <button key={tag} type="button" onClick={() => toggleTag(tag)} className={`rounded-full px-3 py-1 text-xs font-semibold transition border ${createForm.selectedTags.includes(tag) ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-violet-300'}`}>{tag}</button>)}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={customTagInput}
+                    onChange={(event) => setCustomTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addCustomTag();
+                      }
+                    }}
+                    placeholder={copy.customTagPlaceholder}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                  />
+                  <button type="button" onClick={addCustomTag} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{copy.addTag}</button>
+                </div>
+              </div>
               <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"><input type="checkbox" checked={createForm.isPublic} onChange={(event) => setCreateForm((current) => ({ ...current, isPublic: event.target.checked }))} className="mt-1 h-4 w-4 rounded border-slate-300 text-violet-600" /><span><span className="block font-semibold text-slate-900">{copy.publicLabel}</span><span className="block text-xs text-slate-500">{copy.publicDesc}</span></span></label>
               {createError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{createError}</div> : null}
               <button type="button" onClick={() => void handleCreate()} disabled={creating} className="w-full rounded-xl bg-violet-600 py-3 text-sm font-bold text-white transition hover:bg-violet-700 disabled:opacity-50">{creating ? copy.submitting : copy.submit}</button>

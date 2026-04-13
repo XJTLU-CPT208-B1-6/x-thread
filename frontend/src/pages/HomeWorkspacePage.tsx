@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  AlertCircle,
   Bot,
   DoorOpen,
   Gamepad2,
@@ -30,6 +31,8 @@ import { getPersonalityTypeOptions, type PersonalityType } from '../lib/personal
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { useRoomStore } from '../stores/useRoomStore';
 import { useUserStore } from '../stores/useUserStore';
+import { getPasswordMatchError, getPasswordStrength, getStrengthLabel } from '../utils/authValidation';
+import { BASE_ROOM_TAGS, sanitizeCustomTag, validateCustomTag } from '../utils/roomTags';
 
 type Section = 'home' | 'current' | 'create' | 'join' | 'lobby' | 'profile' | 'ai' | 'pets' | 'lang';
 
@@ -83,8 +86,16 @@ export default function HomeWorkspacePage() {
   const [section, setSection] = useState<Section>((searchParams.get('section') as Section | null) ?? 'home');
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [overview, setOverview] = useState<AccountOverview | null>(null);
-  const [accountForm, setAccountForm] = useState({ account: '', nickname: '', personalityType: '' as '' | PersonalityType, password: '' });
-  const [roomForm, setRoomForm] = useState({ topic: '', code: '', mode: 'ONSITE' as 'ONSITE' | 'REMOTE', maxMembers: 8, isPublic: true });
+  const [accountForm, setAccountForm] = useState({ account: '', nickname: '', personalityType: '' as '' | PersonalityType, password: '', confirmPassword: '' });
+  const [roomForm, setRoomForm] = useState({
+    topic: '',
+    code: '',
+    mode: 'ONSITE' as 'ONSITE' | 'REMOTE',
+    maxMembers: 8,
+    isPublic: true,
+    selectedTags: [] as string[],
+    customTagInput: '',
+  });
   const [profileForm, setProfileForm] = useState({ nickname: '', realName: '', xjtluEmail: '', personalityType: '' as '' | PersonalityType });
   const [authBusy, setAuthBusy] = useState(false);
   const [roomBusy, setRoomBusy] = useState(false);
@@ -94,6 +105,7 @@ export default function HomeWorkspacePage() {
   const [accountBusy, setAccountBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [availableTags, setAvailableTags] = useState<string[]>(BASE_ROOM_TAGS);
 
   const copy = useMemo(
     () =>
@@ -113,8 +125,12 @@ export default function HomeWorkspacePage() {
             account: 'Account',
             nickname: 'Nickname',
             password: 'Password',
+            confirmPassword: 'Confirm Password',
             login: 'Login',
             register: 'Register',
+            passwordMismatch: 'Passwords do not match',
+            passwordMatched: 'Passwords match',
+            passwordStrength: 'Password Strength',
             personalityType: 'Personality Type',
             personalityTypeDesc: 'Pick the style that matches how you usually join group discussion.',
             authSwitchDesc: 'Switch language anytime before signing in.',
@@ -122,6 +138,9 @@ export default function HomeWorkspacePage() {
             roomCode: 'Room Code',
             roomMode: 'Room Mode',
             maxMembers: 'Max Members',
+            tags: 'Tags',
+            customTagPlaceholder: 'Add custom tag',
+            addTag: 'Add',
             publicLobby: 'Public in Group Lobby',
             saveProfile: 'Save Profile',
             refresh: 'Refresh',
@@ -154,8 +173,12 @@ export default function HomeWorkspacePage() {
             account: '账号',
             nickname: '昵称',
             password: '密码',
+            confirmPassword: '确认密码',
             login: '登录',
             register: '注册',
+            passwordMismatch: '两次输入的密码不一致',
+            passwordMatched: '两次输入一致',
+            passwordStrength: '密码强度',
             personalityType: '人格类型',
             personalityTypeDesc: '选择你平时参与小组讨论时更接近的表达方式。',
             authSwitchDesc: '登录前也可以随时切换中英文界面。',
@@ -163,6 +186,9 @@ export default function HomeWorkspacePage() {
             roomCode: '房间码',
             roomMode: '房间模式',
             maxMembers: '人数上限',
+            tags: '标签',
+            customTagPlaceholder: '新增自定义标签',
+            addTag: '添加',
             publicLobby: '公开到组队大厅',
             saveProfile: '保存资料',
             refresh: '刷新',
@@ -184,6 +210,16 @@ export default function HomeWorkspacePage() {
   );
 
   const personalityOptions = getPersonalityTypeOptions(language);
+  const availableRoomTags = useMemo(
+    () => Array.from(new Set([...availableTags, ...roomForm.selectedTags])),
+    [availableTags, roomForm.selectedTags],
+  );
+  const passwordMismatchError =
+    authTab === 'register'
+      ? getPasswordMatchError(language, accountForm.password, accountForm.confirmPassword)
+      : '';
+  const passwordStrength = getPasswordStrength(accountForm.password);
+  const passwordStrengthLabel = getStrengthLabel(language, passwordStrength);
 
   const sections = [
     { id: 'home' as const, label: copy.home, icon: Home },
@@ -219,6 +255,19 @@ export default function HomeWorkspacePage() {
 
   useEffect(() => {
     if (user) {
+      void roomService
+        .listTags()
+        .then((payload) => {
+          if (Array.isArray(payload?.tags) && payload.tags.length) {
+            setAvailableTags(payload.tags);
+          }
+        })
+        .catch(() => undefined);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
       setProfileForm({
         nickname: user.name ?? '',
         realName: user.realName ?? '',
@@ -249,6 +298,10 @@ export default function HomeWorkspacePage() {
   };
 
   const handleRegister = async () => {
+    if (getPasswordMatchError(language, accountForm.password, accountForm.confirmPassword)) {
+      setError(copy.passwordMismatch);
+      return;
+    }
     setAuthBusy(true);
     setError('');
     try {
@@ -262,11 +315,30 @@ export default function HomeWorkspacePage() {
     }
   };
 
+  const submitAuth = async () => {
+    if (authBusy) return;
+    if (authTab === 'login') {
+      await handleLogin();
+      return;
+    }
+    if (passwordMismatchError) {
+      setError(copy.passwordMismatch);
+      return;
+    }
+    await handleRegister();
+  };
+
   const handleCreateRoom = async () => {
     setRoomBusy(true);
     setError('');
     try {
-      const result = await roomService.createRoom({ topic: roomForm.topic.trim(), mode: roomForm.mode, maxMembers: roomForm.maxMembers, isPublic: roomForm.isPublic });
+      const result = await roomService.createRoom({
+        topic: roomForm.topic.trim(),
+        mode: roomForm.mode,
+        maxMembers: roomForm.maxMembers,
+        isPublic: roomForm.isPublic,
+        tags: roomForm.selectedTags,
+      });
       const room = result.room.room ?? result.room;
       setRoom(room);
       navigate(roomPath(room.code, room.phase));
@@ -275,6 +347,40 @@ export default function HomeWorkspacePage() {
     } finally {
       setRoomBusy(false);
     }
+  };
+
+  const toggleHomeRoomTag = (tag: string) => {
+    setRoomForm((current) => ({
+      ...current,
+      selectedTags: current.selectedTags.includes(tag)
+        ? current.selectedTags.filter((item) => item !== tag)
+        : [...current.selectedTags, tag],
+    }));
+  };
+
+  const addHomeCustomTag = () => {
+    const normalized = sanitizeCustomTag(roomForm.customTagInput);
+    const preCheckError = validateCustomTag(normalized, availableRoomTags, language);
+    if (preCheckError) {
+      setError(preCheckError);
+      return;
+    }
+    roomService
+      .createTag(normalized)
+      .then((payload) => {
+        setAvailableTags((current) => Array.from(new Set([...current, payload.tag])));
+        setRoomForm((current) => ({
+          ...current,
+          selectedTags: current.selectedTags.includes(payload.tag)
+            ? current.selectedTags
+            : [...current.selectedTags, payload.tag],
+          customTagInput: '',
+        }));
+        setError('');
+      })
+      .catch((err: any) => {
+        setError(err?.response?.data?.message ?? 'Failed');
+      });
   };
 
   const handleJoinRoom = async () => {
@@ -346,7 +452,105 @@ export default function HomeWorkspacePage() {
       case 'current':
         return <Card title={copy.current} description={copy.currentDesc}>{(overview?.activeRooms ?? []).length ? <div className="grid gap-4 md:grid-cols-2">{overview?.activeRooms.map((room) => <button key={room.roomId} type="button" onClick={() => void goToRoom(room.code, room.phase)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left"><div className="text-xs uppercase tracking-[0.22em] text-slate-500">{room.code}</div><div className="mt-1 text-lg font-bold text-slate-900">{room.topic}</div></button>)}</div> : <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">{copy.noRooms}</div>}</Card>;
       case 'create':
-        return <Card title={copy.create} description={copy.createDesc}><div className="grid gap-4 md:grid-cols-2"><div className="md:col-span-2"><label className="mb-2 block text-sm font-medium text-slate-700">{copy.createTopic}</label><input value={roomForm.topic} onChange={(event) => setRoomForm((current) => ({ ...current, topic: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></div><div><label className="mb-2 block text-sm font-medium text-slate-700">{copy.roomMode}</label><select value={roomForm.mode} onChange={(event) => setRoomForm((current) => ({ ...current, mode: event.target.value as 'ONSITE' | 'REMOTE' }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"><option value="ONSITE">{copy.roomModeOnsite}</option><option value="REMOTE">{copy.roomModeRemote}</option></select></div><div><label className="mb-2 block text-sm font-medium text-slate-700">{copy.maxMembers}</label><input type="number" min={2} max={20} value={roomForm.maxMembers} onChange={(event) => setRoomForm((current) => ({ ...current, maxMembers: Math.max(2, Math.min(20, Number(event.target.value) || 8)) }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></div><label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700"><input type="checkbox" checked={roomForm.isPublic} onChange={(event) => setRoomForm((current) => ({ ...current, isPublic: event.target.checked }))} className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600" /><span className="font-semibold text-slate-900">{copy.publicLobby}</span></label></div>{error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div> : null}<button type="button" onClick={() => void handleCreateRoom()} disabled={roomBusy} className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{copy.create}</button></Card>;
+        return (
+          <Card title={copy.create} description={copy.createDesc}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">{copy.createTopic}</label>
+                <input
+                  value={roomForm.topic}
+                  onChange={(event) => setRoomForm((current) => ({ ...current, topic: event.target.value }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">{copy.roomMode}</label>
+                <select
+                  value={roomForm.mode}
+                  onChange={(event) => setRoomForm((current) => ({ ...current, mode: event.target.value as 'ONSITE' | 'REMOTE' }))}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="ONSITE">{copy.roomModeOnsite}</option>
+                  <option value="REMOTE">{copy.roomModeRemote}</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">{copy.maxMembers}</label>
+                <input
+                  type="number"
+                  min={2}
+                  max={20}
+                  value={roomForm.maxMembers}
+                  onChange={(event) =>
+                    setRoomForm((current) => ({
+                      ...current,
+                      maxMembers: Math.max(2, Math.min(20, Number(event.target.value) || 8)),
+                    }))
+                  }
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-slate-700">{copy.tags}</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableRoomTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleHomeRoomTag(tag)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition border ${
+                        roomForm.selectedTags.includes(tag)
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={roomForm.customTagInput}
+                    onChange={(event) => setRoomForm((current) => ({ ...current, customTagInput: event.target.value }))}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addHomeCustomTag();
+                      }
+                    }}
+                    placeholder={copy.customTagPlaceholder}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={addHomeCustomTag}
+                    className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {copy.addTag}
+                  </button>
+                </div>
+              </div>
+              <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={roomForm.isPublic}
+                  onChange={(event) => setRoomForm((current) => ({ ...current, isPublic: event.target.checked }))}
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                />
+                <span className="font-semibold text-slate-900">{copy.publicLobby}</span>
+              </label>
+            </div>
+            {error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div> : null}
+            <button
+              type="button"
+              onClick={() => void handleCreateRoom()}
+              disabled={roomBusy}
+              className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {copy.create}
+            </button>
+          </Card>
+        );
       case 'join':
         return <Card title={copy.join} description={copy.joinDesc}><label className="mb-2 block text-sm font-medium text-slate-700">{copy.roomCode}</label><input value={roomForm.code} onChange={(event) => setRoomForm((current) => ({ ...current, code: event.target.value.toUpperCase() }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold uppercase tracking-[0.28em] outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" />{error ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div> : null}<button type="button" onClick={() => void handleJoinRoom()} disabled={roomBusy} className="mt-4 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60">{copy.join}</button></Card>;
       case 'lobby':
@@ -382,15 +586,6 @@ export default function HomeWorkspacePage() {
           </div>
 
           <section className="rounded-[34px] border border-blue-200/60 bg-white/95 p-8 shadow-[0_32px_90px_rgba(30,58,138,0.12)]">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-500">
-                {copy.authSwitchDesc}
-              </div>
-              <div className="hidden md:block">
-                <SimpleLanguageToggle />
-              </div>
-            </div>
-
             <div className="mb-6 flex rounded-2xl border border-blue-100 bg-blue-50 p-1">
               {(['login', 'register'] as const).map((tab) => (
                 <button
@@ -459,14 +654,69 @@ export default function HomeWorkspacePage() {
               ) : null}
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-blue-950">{copy.password}</label>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-medium text-blue-950">{copy.password}</label>
+                  {authTab === 'register' ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        passwordStrength === 'strong'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : passwordStrength === 'medium'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      {copy.passwordStrength}: {passwordStrengthLabel}
+                    </span>
+                  ) : null}
+                </div>
                 <input
                   type="password"
                   value={accountForm.password}
                   onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void submitAuth();
+                    }
+                  }}
                   className="w-full rounded-2xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm outline-none focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
                 />
               </div>
+
+              {authTab === 'register' ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-blue-950">{copy.confirmPassword}</label>
+                  <input
+                    type="password"
+                    value={accountForm.confirmPassword}
+                    onChange={(event) =>
+                      setAccountForm((current) => ({ ...current, confirmPassword: event.target.value }))
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void submitAuth();
+                      }
+                    }}
+                    className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none focus:bg-white focus:ring-2 ${
+                      passwordMismatchError
+                        ? 'border-rose-300 bg-rose-50/60 focus:border-rose-400 focus:ring-rose-100'
+                        : 'border-blue-200 bg-blue-50/50 focus:border-blue-400 focus:ring-blue-100'
+                    }`}
+                  />
+                  {accountForm.confirmPassword ? (
+                    <div
+                      className={`mt-2 inline-flex items-center gap-1.5 text-xs font-medium ${
+                        passwordMismatchError ? 'text-rose-600' : 'text-emerald-700'
+                      }`}
+                    >
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      {passwordMismatchError || copy.passwordMatched}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -476,8 +726,8 @@ export default function HomeWorkspacePage() {
 
               <button
                 type="button"
-                onClick={() => void (authTab === 'login' ? handleLogin() : handleRegister())}
-                disabled={authBusy}
+                onClick={() => void submitAuth()}
+                disabled={authBusy || (authTab === 'register' && Boolean(passwordMismatchError))}
                 className="w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
               >
                 {authBusy ? '...' : authTab === 'login' ? copy.login : copy.register}

@@ -59,19 +59,11 @@ export function LanguageSwitcher() {
                       <div className="font-semibold">{option.title}</div>
                       <div className="text-xs text-slate-500">{option.subtitle}</div>
                     </div>
-                    {active ? (
-                      <div className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] text-white">
-                        ?
-                      </div>
-                    ) : null}
                   </button>
                 );
               })}
             </div>
 
-            <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
-              {isChinese ? '即时切换，无需刷新' : 'Switch instantly, no refresh needed'}
-            </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
