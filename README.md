@@ -1,49 +1,170 @@
-# X_thread
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white) ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black) ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![Status](https://img.shields.io/badge/status-completed-22C55E?style=flat-square) ![License](https://img.shields.io/badge/license-MIT-2563EB?style=flat-square)
-一款简洁美观的协作讨论平台，基于前后端全栈技术独立开发，支持线程讨论、交互协作及AI辅助功能。
+# X-Thread
+
+西交利物浦大学小组讨论平台，围绕“房间讨论 + AI 辅助 + 实时协作”构建。当前仓库包含房间大厅、阶段化讨论、思维导图、白板、共享文件、房间历史、账号设置和 companion bot 等能力。
+
+CPT208 Human-Centric Computing | Topic B1
 
 ## 项目预览
-| ![截图1：项目首页展示](docs/assets/preview-home.svg) | ![截图2：核心功能（协作讨论/AI交互）展示](docs/assets/preview-feature.svg) | ![截图3：响应式效果展示](docs/assets/preview-responsive.svg) |
-| :--: | :--: | :--: |
+
+| 项目首页展示 | 协作讨论 / AI 交互展示 |
+|------|------|
+| ![项目首页展示](docs/assets/home-desktop.png) | ![协作讨论与AI交互展示](docs/assets/room-voice-ai.png) |
+
+| Group Lobby 展示 | 响应式效果展示 |
+|------|------|
+| ![Group Lobby 展示](docs/assets/group-lobby.png) | ![响应式效果展示](docs/assets/home-mobile.png) |
+
+## 当前能力
+
+- 房间流程：创建房间、公开大厅、加入房间、锁房、阶段切换、离开与解散。
+- 实时协作：聊天、思维导图、文字白板、共享文件、房间状态同步。
+- AI 能力：房间问答、白板摘要、思维导图生成/扩展/优化、可配置多家兼容模型。
+- 账号能力：注册登录、资料编辑、AI 设置、默认与自定义 companion profiles。
+- 远程互动：Socket.IO 实时同步，远程语音通话采用浏览器 WebRTC，服务端负责信令转发。
+- 历史回看：聊天搜索、房间历史页、白板快照、思维导图大纲、共享文件历史下载。
 
 ## 技术栈
-### 技术说明
-前端：HTML5、CSS3、JavaScript；后端：Node.js
 
-## 功能介绍
-- ✨ 支持用户登录与游客模式
-- 📌 支持线程发布编辑删除
-- ✨ 支持实时消息互动协作
-- 📌 提供后端接口统一支撑
-- ✨ 集成AI辅助讨论能力
-- 📌 支持房间管理与阶段流转
+| Layer | Technology |
+|------|------|
+| Frontend | React 18, Vite 5, TypeScript, Tailwind CSS |
+| State & Routing | Zustand, React Router v6 |
+| Realtime | Socket.IO, browser WebRTC |
+| Mind Map | `@xyflow/react` |
+| Backend | NestJS, Fastify, TypeScript |
+| Data | PostgreSQL 16, Prisma ORM |
+| Infra in compose | PostgreSQL, Redis, MinIO |
+| AI Providers | DeepSeek, Kimi, Qwen, GLM, ModelScope, custom OpenAI-compatible |
+| File Persistence | 当前共享文件实现存储在 `backend/storage/` |
 
-## 本地运行步骤
-### 1. 克隆仓库
+## 运行前提
+
+- Node.js 20+
+- pnpm 9+
+- Docker Desktop / Docker Compose
+
+## 常用脚本
+
+在仓库根目录执行：
+
+```bash
+pnpm install
+pnpm dev
+pnpm dev:backend
+pnpm dev:frontend
+pnpm build:backend
+pnpm build:frontend
+```
+
+说明：
+
+- `pnpm dev` 会先检查 `backend/.env`，执行 Prisma migrate deploy，并在数据库未就绪时尝试 `docker compose up -d`。
+- 前端默认运行在 `http://localhost:5173`。
+- 后端默认运行在 `http://localhost:3001`，全局前缀为 `/api`。
+
+## 快速启动
+
 ```bash
 git clone https://github.com/XJTLU-CPT208-B1-6/x-thread
 cd x-thread
+pnpm install
 ```
 
-### 2. 后端启动
+创建后端环境文件：
+
 ```bash
-cd backend
-pnpm install
+copy .env.example backend\\.env
+```
+
+启动基础设施：
+
+```bash
+docker compose up -d
+```
+
+启动开发环境：
+
+```bash
 pnpm dev
 ```
 
-### 3. 前端启动
-```bash
-cd ../frontend
-pnpm install
-pnpm dev
+首次运行时，如果 `backend/.env` 不存在，启动脚本会自动从根目录 `.env.example` 生成默认配置。
+
+访问地址：
+
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001/api`
+- MinIO Console: `http://localhost:9001`
+
+## 当前目录结构
+
+```text
+x-thread/
+├── backend/
+│   ├── prisma/
+│   │   ├── migrations/
+│   │   └── schema.prisma
+│   ├── scripts/
+│   ├── storage/
+│   └── src/
+│       ├── common/
+│       ├── gateways/
+│       ├── modules/
+│       │   ├── account/
+│       │   ├── admin/
+│       │   ├── ai/
+│       │   ├── auth/
+│       │   ├── chat/
+│       │   ├── ingestion/
+│       │   ├── mindmap/
+│       │   ├── rooms/
+│       │   ├── shared-files/
+│       │   └── whiteboard/
+│       ├── app.module.ts
+│       └── main.ts
+├── frontend/
+│   ├── public/
+│   └── src/
+│       ├── components/
+│       ├── hooks/
+│       ├── lib/
+│       ├── pages/
+│       ├── services/
+│       ├── stores/
+│       ├── types/
+│       ├── utils/
+│       ├── App.tsx
+│       └── main.tsx
+├── docs/
+│   ├── PROJECT_ORGANIZATION_REPORT.md
+│   ├── QUICKSTART.md
+│   ├── SETUP.md
+│   └── SETUP_LOCAL.md
+├── ai-logs/
+├── docker-compose.yml
+├── start-dev.js
+├── start-dev.ps1
+├── package.json
+└── pnpm-workspace.yaml
 ```
 
-## 项目亮点
-- ✨ 独立完成前后端全流程开发
-- 📌 采用前后端分离架构设计
-- ✨ 代码分层清晰便于维护扩展
-- 📌 功能贴合协作讨论真实场景
+## 文档入口
 
-## 开源协议
-采用MIT开源协议。![MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)
+- [快速启动指南](docs/QUICKSTART.md)
+- [本地环境配置](docs/SETUP.md)
+- [无 Docker 本地配置](docs/SETUP_LOCAL.md)
+- [项目整理报告](docs/PROJECT_ORGANIZATION_REPORT.md)
+
+## 开发验证
+
+```bash
+corepack pnpm --filter x-thread-backend exec jest --runInBand
+corepack pnpm --filter x-thread-frontend test
+corepack pnpm --filter x-thread-backend build
+corepack pnpm --filter x-thread-frontend build
+```
+
+## 备注
+
+- `ai-logs/` 保留课程要求的 AI 使用记录。
+- 根目录保留少量兼容文档入口，正式说明统一归档到 `docs/`。
