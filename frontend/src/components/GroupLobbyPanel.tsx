@@ -214,19 +214,19 @@ export function GroupLobbyPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-violet-500 to-blue-500 p-5 text-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl bg-gradient-to-r from-violet-500 to-blue-500 p-5 text-white shadow-sm sm:items-center">
         <div>
           <p className="text-lg font-black">{copy.title}</p>
           <p className="text-xs text-white/75">{copy.subtitle}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           <button type="button" onClick={() => setShowCreate(true)} className="rounded-xl bg-white/20 px-4 py-2 text-sm font-bold text-white transition hover:bg-white/30">{copy.createRoom}</button>
           <button type="button" onClick={() => void fetchRooms()} className="rounded-xl bg-white/10 px-3 py-2 text-sm text-white transition hover:bg-white/20">{copy.refresh}</button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={copy.search} className="w-full sm:w-52 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100" />
         {BASE_ROOM_TAGS.map((tag) => <button key={tag} type="button" onClick={() => setFilterTag(filterTag === tag ? null : tag)} className={`rounded-full px-2.5 py-1 text-xs font-semibold transition border ${filterTag === tag ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'}`}>{tag}</button>)}
         {(filterTag || search) ? <button type="button" onClick={() => { setFilterTag(null); setSearch(''); }} className="text-xs text-slate-400 underline hover:text-slate-600">{copy.clear}</button> : null}
       </div>

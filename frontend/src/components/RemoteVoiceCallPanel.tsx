@@ -439,7 +439,7 @@ export function RemoteVoiceCallPanel({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${joined ? 'pb-28 sm:pb-24' : ''}`}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => {
             const initials = (card.label || '?').trim().slice(0, 2).toUpperCase();
@@ -478,7 +478,7 @@ export function RemoteVoiceCallPanel({
 
       {joined ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-2xl border border-[#283249] bg-[#182033]/90 p-2 backdrop-blur">
+          <div className="pointer-events-auto flex max-w-[260px] flex-wrap items-center justify-center gap-2 rounded-2xl border border-[#283249] bg-[#182033]/90 p-2 backdrop-blur sm:max-w-none sm:flex-nowrap">
             <button type="button" onClick={toggleMic} disabled={micLockedByQueue} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${micEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'} disabled:opacity-50`}>
               {micEnabled ? <Mic className="mb-1 h-4 w-4" /> : <MicOff className="mb-1 h-4 w-4" />}
               {micEnabled ? copy.mute : copy.unmute}
