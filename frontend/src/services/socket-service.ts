@@ -6,12 +6,11 @@ import { useMindMapStore } from '../stores/useMindMapStore';
 import { useChatStore } from '../stores/useChatStore';
 import { useUserStore } from '../stores/useUserStore';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
+import { socketBaseUrl } from '../lib/runtime-config';
 import type { MindMapApiEdge, MindMapApiNode, WhiteboardSnapshot } from './api-client';
 import type { Room, RoomMember } from '../types/room';
 import { ChatMessage } from '../types/socket-events';
 
-// Backend gateway runs on namespace /room at port 3001
-// Vite dev proxy forwards /socket.io → http://localhost:3001
 const SOCKET_NS = '/room';
 
 type RoomDissolvedPayload = {
@@ -42,7 +41,7 @@ class SocketService {
     const token = getStoredAuthToken();
     if (!token) return;
 
-    this.socket = io(SOCKET_NS, {
+    this.socket = io(`${socketBaseUrl}${SOCKET_NS}`, {
       auth: { token },
       path: '/socket.io',
     });

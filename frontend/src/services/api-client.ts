@@ -1,11 +1,12 @@
 import axios from 'axios';
 import { AccountProfile, getStoredAuthToken } from '../lib/auth';
+import { apiBaseUrl } from '../lib/runtime-config';
 import { type PersonalityType } from '../lib/personality';
 import { CompanionProfile } from '../types/companion';
 import { SharedFile, SharedFileTree, SharedFolder } from '../types/shared-file';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBaseUrl,
   headers: { 'Content-Type': 'application/json' },
 });
 
