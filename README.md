@@ -33,11 +33,11 @@
 
 | 项目首页展示 | 协作讨论 / AI 交互展示 |
 |------|------|
-| ![项目首页展示](docs/assets/home-desktop.png) | ![协作讨论与AI交互展示](docs/assets/room-voice-ai.png) |
+| ![项目首页展示](docs/assets/home-desktop.png) | ![响应式效果展示](docs/assets/home-mobile.png) |
 
 | Group Lobby 展示 | 响应式效果展示 |
 |------|------|
-| ![Group Lobby 展示](docs/assets/group-lobby.png) | ![响应式效果展示](docs/assets/home-mobile.png) |
+| ![Group Lobby 展示](docs/assets/group-lobby.png) | ![协作讨论与AI交互展示](docs/assets/room-voice-ai.png) |
 
 ## 当前能力
 
