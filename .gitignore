@@ -136,6 +136,8 @@ dist
 .pnp.*
 
 # Local IDE / AI assistant config
+.vscode/
+.idea/
 .ace-tool/
 .claude/
 .kiro/
@@ -143,3 +145,32 @@ dist
 # Local runtime artifacts
 backend/storage/
 backend/uploads/
+
+# Local logs / notes
+ai-logs/
+
+# Local archives
+*.zip
+*.7z
+*.rar
+
+# Local generated docs in source tree
+frontend/src/pages/test.aux
+frontend/src/pages/test.pdf
+frontend/src/pages/test.synctex.gz
+frontend/src/pages/test.tex
+
+# Temporary caches and runtime files
+tmp/
+temp/
+*.tmp
+*.cache
+
+# Database files and logs
+*.db
+*.sqlite
+*.sqlite3
+
+# Misc test outputs
+test-output/
+playwright-report/
