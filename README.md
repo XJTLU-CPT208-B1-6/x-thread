@@ -1,10 +1,35 @@
 # X-Thread
 
-西交利物浦大学小组讨论平台，围绕“房间讨论 + AI 辅助 + 实时协作”构建。当前仓库包含房间大厅、阶段化讨论、思维导图、白板、共享文件、房间历史、账号设置和 companion bot 等能力。
+西交利物浦大学小组讨论平台，围绕“房间讨论 + AI 辅助 + 实时协作”构建，支持多人协作、阶段化讨论、共享白板、思维导图与 AI 辅助分析。
 
-CPT208 Human-Centric Computing | Topic B1
+![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite-61DAFB?style=flat-square&logo=react&logoColor=white)
+![Backend](https://img.shields.io/badge/Backend-NestJS%20%2B%20Fastify-E0234E?style=flat-square&logo=nestjs&logoColor=white)
+![Database](https://img.shields.io/badge/Database-PostgreSQL%20%2B%20Prisma-336791?style=flat-square&logo=postgresql&logoColor=white)
+![Realtime](https://img.shields.io/badge/Realtime-Socket.IO-010101?style=flat-square&logo=socketdotio&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Completed-22C55E?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-F59E0B?style=flat-square)
+
+> CPT208 Human-Centric Computing | Topic B1
+
+## 快速导航
+
+- [项目预览](#项目预览)
+- [核心亮点](#核心亮点)
+- [当前能力](#当前能力)
+- [技术栈](#技术栈)
+- [快速启动](#快速启动)
+- [文档入口](#文档入口)
+
+## 核心亮点
+
+- 多人房间讨论与公开大厅并存，兼顾即时加入与组织协作
+- 实时聊天、语音通话、思维导图、白板、文件共享一体化
+- 接入多家 AI Provider，支持问答、摘要、导图生成与扩展
+- 前后端分离架构清晰，适合课程展示、作品集与继续迭代
 
 ## 项目预览
+
+> 首页、实时讨论、Group Lobby 与移动端响应式界面预览
 
 | 项目首页展示 | 协作讨论 / AI 交互展示 |
 |------|------|
@@ -36,6 +61,18 @@ CPT208 Human-Centric Computing | Topic B1
 | Infra in compose | PostgreSQL, Redis, MinIO |
 | AI Providers | DeepSeek, Kimi, Qwen, GLM, ModelScope, custom OpenAI-compatible |
 | File Persistence | 当前共享文件实现存储在 `backend/storage/` |
+
+## 项目结构概览
+
+```text
+x-thread/
+├── backend/      # NestJS + Prisma 后端
+├── frontend/     # React + Vite 前端
+├── docs/         # 项目文档与 README 资源
+├── docker-compose.yml
+├── package.json
+└── pnpm-workspace.yaml
+```
 
 ## 运行前提
 
