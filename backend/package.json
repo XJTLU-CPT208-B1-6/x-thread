@@ -3,19 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "prisma migrate deploy && prisma generate",
+    "predev": "npx prisma migrate deploy && npx prisma generate",
     "dev": "nest start --watch",
-    "prebuild": "prisma generate",
+    "prebuild": "npx prisma generate",
     "build": "nest build",
-    "prestart": "prisma generate",
+    "prestart": "npx prisma generate",
     "start": "node dist/main",
-    "pretest": "prisma generate",
+    "pretest": "npx prisma generate",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:studio": "npx prisma studio"
   },
   "dependencies": {
     "@nestjs/bull": "^10.0.0",
