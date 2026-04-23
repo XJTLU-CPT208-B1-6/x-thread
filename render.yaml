@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: x-thread-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/src/main.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.14.1
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # 以下变量请在 Render Dashboard 中配置，不要提交到仓库
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
