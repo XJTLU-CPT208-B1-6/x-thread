@@ -13,6 +13,7 @@ import {
   ReactFlowProvider,
   SelectionMode,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
 } from '@xyflow/react';
@@ -141,15 +142,17 @@ const isImageFile = (file: Pick<SharedFile, 'mimeType'>) =>
 type MindMapProps = {
   fileTree?: SharedFileTree;
   readonly?: boolean;
+  viewportKey?: string;
 };
 
 const emptyFileTree: SharedFileTree = { folders: [], files: [] };
 
-const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapProps) => {
+const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false, viewportKey = 'default' }: MindMapProps) => {
   const { currentRoom } = useRoomStore();
   const { user } = useUserStore();
   const { nodes, edges, setNodes, setEdges } = useMindMapStore();
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState(nodes);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState(edges);
   const [activeNodeType, setActiveNodeType] = useState<MindMapNodeType>('IDEA');
@@ -168,6 +171,7 @@ const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapPr
   const [aiStructure, setAiStructure] = useState<AiMindMapStructure>('hierarchy');
   const dragSnapshotRef = useRef<MindMapGraphSnapshot | null>(null);
   const dragModeRef = useRef<'single' | 'selection' | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const availableAiFiles = [...fileTree.files].sort((left, right) =>
     right.uploadedAt.localeCompare(left.uploadedAt),
@@ -189,6 +193,39 @@ const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapPr
     setRfEdges(edges);
   }, [edges, setRfEdges]);
 
+  const syncViewport = useCallback(() => {
+    if (rfNodes.length === 0) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      void fitView({
+        padding: 0.18,
+        duration: 0,
+      });
+    });
+  }, [fitView, rfNodes.length]);
+
+  const scheduleViewportSync = useCallback(() => {
+    if (rfNodes.length === 0) {
+      return;
+    }
+
+    syncViewport();
+    const timers = [
+      window.setTimeout(() => {
+        syncViewport();
+      }, 120),
+      window.setTimeout(() => {
+        syncViewport();
+      }, 320),
+    ];
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [rfNodes.length, syncViewport]);
+
   useEffect(() => {
     setUndoStack([]);
     setRedoStack([]);
@@ -209,6 +246,42 @@ const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapPr
       current.filter((fileId) => availableAiFiles.some((file) => file.id === fileId)),
     );
   }, [availableAiFiles]);
+
+  useEffect(() => {
+    syncViewport();
+  }, [syncViewport, viewportKey]);
+
+  useEffect(() => {
+    if (!nodesInitialized) {
+      return;
+    }
+
+    return scheduleViewportSync();
+  }, [nodesInitialized, scheduleViewportSync, viewportKey]);
+
+  useEffect(() => {
+    if (rfNodes.length === 0 || !canvasRef.current || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    let timeoutId: number | null = null;
+    const observer = new ResizeObserver(() => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      timeoutId = window.setTimeout(() => {
+        syncViewport();
+      }, 80);
+    });
+
+    observer.observe(canvasRef.current);
+    return () => {
+      observer.disconnect();
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [rfNodes.length, syncViewport, viewportKey]);
 
   const currentTopic = currentRoom?.topic ?? '\u601d\u7ef4\u5bfc\u56fe';
 
@@ -1019,8 +1092,12 @@ const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapPr
   const canAiOptimize = canUseAi && !aiLoading && realNodeCount >= 2;
 
   return (
-    <div className="h-full min-h-[560px] w-full overflow-hidden rounded-[8px] border border-slate-200 bg-white">
+    <div
+      ref={canvasRef}
+      className="flex h-full min-h-[560px] min-w-0 flex-1 flex-col overflow-hidden rounded-[8px] border border-slate-200 bg-white"
+    >
       <ReactFlow
+        className="flex-1"
         nodes={interactiveNodes}
         edges={rfEdges}
         onNodesChange={onNodesChange}
@@ -1400,8 +1477,8 @@ const MindMapCanvas = ({ fileTree = emptyFileTree, readonly = false }: MindMapPr
   );
 };
 
-export const MindMap = ({ fileTree, readonly = false }: MindMapProps) => (
+export const MindMap = ({ fileTree, readonly = false, viewportKey }: MindMapProps) => (
   <ReactFlowProvider>
-    <MindMapCanvas fileTree={fileTree} readonly={readonly} />
+    <MindMapCanvas fileTree={fileTree} readonly={readonly} viewportKey={viewportKey} />
   </ReactFlowProvider>
 );
