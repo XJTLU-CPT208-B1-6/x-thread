@@ -8,6 +8,7 @@ describe('resolveStageHint', () => {
     stageHintAi: 'ai',
     stageHintBoard: 'board',
     stageHintFiles: 'files',
+    stageHintChat: 'chat',
     stageHintGame: 'game',
   };
 
@@ -17,6 +18,10 @@ describe('resolveStageHint', () => {
 
   it('returns game hint for game tab', () => {
     expect(resolveStageHint('game', copy)).toBe('game');
+  });
+
+  it('returns chat hint for chat tab', () => {
+    expect(resolveStageHint('chat', copy)).toBe('chat');
   });
 });
 

@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Gamepad2,
   Maximize2,
+  MessageSquareText,
   Minimize2,
   Send,
   Sparkles,
@@ -109,8 +110,8 @@ export default function DiscussPageV2() {
             finish: 'Finish Discussion',
             fullscreen: 'Browser Fullscreen',
             exitFullscreen: 'Exit Fullscreen',
-            focusMode: 'Focus Mode',
-            splitMode: 'Split Layout',
+            focusMode: 'Single Panel',
+            splitMode: 'Split View',
             roomClosed: (topic: string) => `The room "${topic}" was dissolved by the owner.`,
             searchFailed: 'Failed to query chat history',
             leaveFailed: 'Failed to leave room',
@@ -129,6 +130,7 @@ export default function DiscussPageV2() {
             stageHintAi: 'AI deep discussion',
             stageHintBoard: 'Collaborative whiteboard',
             stageHintFiles: 'Shared files',
+            stageHintChat: 'Room chat workspace',
             stageHintGame: 'Icebreak game',
             gameComingSoon: 'Icebreak game panel is under preparation.',
           }
@@ -153,8 +155,8 @@ export default function DiscussPageV2() {
             finish: '结束讨论',
             fullscreen: '浏览器全屏',
             exitFullscreen: '退出全屏',
-            focusMode: '聊天全屏',
-            splitMode: '分栏模式',
+            focusMode: '单面板模式',
+            splitMode: '分屏模式',
             roomClosed: (topic: string) => `房间“${topic}”已被房主解散。`,
             searchFailed: '聊天记录查询失败',
             leaveFailed: '退出房间失败',
@@ -173,6 +175,7 @@ export default function DiscussPageV2() {
             stageHintAi: 'AI 深度讨论',
             stageHintBoard: '协作白板',
             stageHintFiles: '共享文件',
+            stageHintChat: '房间聊天工作区',
             stageHintGame: '破冰互动',
             gameComingSoon: '破冰游戏面板正在准备中。',
           },
@@ -186,9 +189,10 @@ export default function DiscussPageV2() {
       { id: 'ai' as const, label: 'AI', icon: Sparkles },
       { id: 'whiteboard' as const, label: language === 'en' ? 'Whiteboard' : '文字白板', icon: ScrollText },
       { id: 'files' as const, label: language === 'en' ? 'Files' : '文件共享', icon: Files },
+      { id: 'chat' as const, label: copy.roomChat, icon: MessageSquareText },
       { id: 'game' as const, label: copy.game, icon: Gamepad2 },
     ],
-    [copy.game, copy.voiceVideo, language],
+    [copy.game, copy.roomChat, copy.voiceVideo, language],
   );
 
   const { currentRoom, setRoom, clearRoom } = useRoomStore();
@@ -197,6 +201,7 @@ export default function DiscussPageV2() {
   const { setNodes, setEdges, clear: clearMindMap } = useMindMapStore();
   const { board, setBoard, clear: clearWhiteboard } = useWhiteboardStore();
   const [activeTab, setActiveTab] = useState<FeatureTab>('voice');
+  const [isSplitView, setIsSplitView] = useState(false);
   const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   const [fileTree, setFileTree] = useState<SharedFileTree>({ folders: [], files: [] });
   const [filesLoading, setFilesLoading] = useState(false);
@@ -378,16 +383,27 @@ export default function DiscussPageV2() {
     () => extractLatestAiSummary(displayedMessages),
     [displayedMessages],
   );
-  const stageHint = resolveStageHint(activeTab, copy);
+  const visibleTabs = useMemo(
+    () => (isSplitView ? tabs.filter((tab) => tab.id !== 'chat') : tabs),
+    [isSplitView, tabs],
+  );
+  const workspaceTab = isSplitView && activeTab === 'chat' ? 'voice' : activeTab;
+  const stageHint = resolveStageHint(workspaceTab, copy);
+
+  useEffect(() => {
+    if (isSplitView && activeTab === 'chat') {
+      setActiveTab('voice');
+    }
+  }, [activeTab, isSplitView]);
 
 
   const renderRemoteSidebar = () => (
-    <aside className="flex h-full w-full flex-col rounded-2xl border border-[#1D2433] bg-[#0B1220] text-slate-100 shadow-[0_16px_30px_rgba(15,17,26,0.45)] lg:w-[320px] xl:w-[360px]">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-[#1D2433] bg-[#0B1220] text-slate-100 shadow-[0_16px_30px_rgba(15,17,26,0.45)]">
       <div className="flex items-center justify-between border-b border-[#1D2433] px-4 py-4">
         <h3 className="text-lg font-semibold text-white">{copy.roomChat}</h3>
         <span className="text-xs text-slate-400">{copy.roomCode} {code}</span>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div className="chat-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {displayedMessages.map((msg) => (
           <div key={msg.id} className={msg.msgType === 'ai_notify' ? 'rounded-xl bg-indigo-500/20 px-3 py-2 text-xs text-indigo-100' : 'rounded-xl bg-[#111A2D] px-3 py-2'}>
             {msg.msgType === 'ai_notify' ? (
@@ -427,7 +443,7 @@ export default function DiscussPageV2() {
   );
 
   const renderTabPanel = () => {
-    switch (activeTab) {
+    switch (workspaceTab) {
       case 'voice':
         return (
           <div className="h-full min-h-0 p-3 md:p-4">
@@ -446,6 +462,8 @@ export default function DiscussPageV2() {
         return <div className="h-full min-h-0 p-4 md:p-6">{currentRoom?.id ? <TextWhiteboard roomId={currentRoom.id} board={board} onBoardChange={setBoard} /> : null}</div>;
       case 'files':
         return <div className="h-full min-h-0 p-4 md:p-6"><FileSharePanel fileTree={fileTree} loading={filesLoading} onRefresh={() => currentRoom?.id ? loadSharedFiles(currentRoom.id) : Promise.resolve()} onUpload={handleUploadFile} onCreateFolder={handleCreateFolder} onRenameFolder={handleRenameFolder} onDownload={handleDownloadFile} onBatchDownload={handleBatchDownload} /></div>;
+      case 'chat':
+        return <div className="h-full min-h-0 p-4 md:p-6">{renderRemoteSidebar()}</div>;
       case 'game':
         return (
           <div className="h-full min-h-0 p-4 md:p-6">
@@ -480,7 +498,7 @@ export default function DiscussPageV2() {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {tabs.map((tab) => {
+              {visibleTabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition md:text-sm ${activeTab === tab.id ? 'bg-[#6366F1] text-white' : 'bg-[#1C2435] text-slate-300 hover:bg-[#252F45]'}`}>
@@ -498,6 +516,9 @@ export default function DiscussPageV2() {
                   {copy.leave}
                 </button>
               )}
+              <button type="button" onClick={() => setIsSplitView((current) => !current)} className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 md:text-sm">
+                {isSplitView ? copy.focusMode : copy.splitMode}
+              </button>
               <button type="button" onClick={() => void toggleBrowserFullscreen()} className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/15 md:text-sm">
                 {isBrowserFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
                 {isBrowserFullscreen ? copy.exitFullscreen : copy.fullscreen}
@@ -507,14 +528,16 @@ export default function DiscussPageV2() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-4 md:px-6 md:pb-6 lg:flex-row">
-        <main className="min-h-[48vh] min-w-0 flex-1 overflow-hidden rounded-2xl border border-[#E6EAFF] bg-white">
+      <div className={`flex min-h-0 flex-1 flex-col px-4 pb-4 md:px-6 md:pb-6 ${isSplitView ? 'gap-4 lg:flex-row' : ''}`}>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-2xl border border-[#E6EAFF] bg-white">
           <div className="border-b border-[#EEF1FF] px-4 py-2 text-xs font-semibold text-[#6366F1]">{stageHint}</div>
           {renderTabPanel()}
         </main>
-        <div className="h-[50vh] lg:h-auto">
-          {renderRemoteSidebar()}
-        </div>
+        {isSplitView ? (
+          <div className="h-[52vh] min-h-[420px] max-h-[680px] shrink-0 lg:h-auto lg:w-[320px] xl:w-[360px]">
+            {renderRemoteSidebar()}
+          </div>
+        ) : null}
       </div>
     </div>
   );

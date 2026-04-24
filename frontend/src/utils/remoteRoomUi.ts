@@ -1,7 +1,7 @@
 import type { ChatMessage } from '../types/socket-events';
 import type { RoomMember } from '../types/room';
 
-export type RemoteFeatureTab = 'voice' | 'mindmap' | 'ai' | 'whiteboard' | 'files' | 'game';
+export type RemoteFeatureTab = 'voice' | 'mindmap' | 'ai' | 'whiteboard' | 'files' | 'chat' | 'game';
 
 export type RemoteStageCopy = {
   stageHintVoice: string;
@@ -9,6 +9,7 @@ export type RemoteStageCopy = {
   stageHintAi: string;
   stageHintBoard: string;
   stageHintFiles: string;
+  stageHintChat: string;
   stageHintGame: string;
 };
 
@@ -32,6 +33,7 @@ export const resolveStageHint = (activeTab: RemoteFeatureTab, copy: RemoteStageC
   if (activeTab === 'ai') return copy.stageHintAi;
   if (activeTab === 'whiteboard') return copy.stageHintBoard;
   if (activeTab === 'files') return copy.stageHintFiles;
+  if (activeTab === 'chat') return copy.stageHintChat;
   return copy.stageHintGame;
 };
 
