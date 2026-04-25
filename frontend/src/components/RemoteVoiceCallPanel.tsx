@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type PointerEventHandler } from 'react';
-import { Hand, Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEventHandler } from 'react';
+import { Hand, Maximize2, Mic, MicOff, Minimize2, Phone, PhoneOff } from 'lucide-react';
 import { socketService } from '../services/socket-service';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import type { RoomMember } from '../types/room';
@@ -33,6 +33,16 @@ const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
 
+const MOBILE_SCROLL_AREA_STYLE: CSSProperties = {
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain',
+  touchAction: 'pan-y',
+};
+
+const MOBILE_DRAG_HANDLE_STYLE: CSSProperties = {
+  touchAction: 'none',
+};
+
 export function RemoteVoiceCallPanel({
   roomId,
   enabled,
@@ -42,8 +52,10 @@ export function RemoteVoiceCallPanel({
   compact = false,
   onCallStateChange,
   onExpand,
+  onToggleCompactMinimize,
   onCompactHeaderPointerDown,
   compactDragActive = false,
+  compactMinimized = false,
 }: {
   roomId?: string;
   enabled: boolean;
@@ -53,8 +65,10 @@ export function RemoteVoiceCallPanel({
   compact?: boolean;
   onCallStateChange?: (state: { joined: boolean; joining: boolean }) => void;
   onExpand?: () => void;
+  onToggleCompactMinimize?: () => void;
   onCompactHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
   compactDragActive?: boolean;
+  compactMinimized?: boolean;
 }) {
   const { language } = useLanguageStore();
   const copy = useMemo(
@@ -88,6 +102,8 @@ export function RemoteVoiceCallPanel({
             raised: 'Raised',
             raise: 'Raise',
             openPanel: 'Open',
+            minimize: 'Minimize',
+            restore: 'Restore',
             unsupported: 'This browser does not support real-time voice calling.',
             denied: 'Unable to access microphone.',
             disabled: 'Voice call is available only in remote mode.',
@@ -120,6 +136,8 @@ export function RemoteVoiceCallPanel({
             raised: '已举手',
             raise: '举手',
             openPanel: '打开',
+            minimize: '最小化',
+            restore: '恢复',
             unsupported: '当前浏览器不支持实时语音通话。',
             denied: '无法访问麦克风。',
             disabled: '语音通话只在远程模式下可用。',
@@ -467,21 +485,69 @@ export function RemoteVoiceCallPanel({
   }
 
   if (compact) {
+    if (compactMinimized) {
+      return (
+        <div
+          className={`flex items-center gap-2 rounded-2xl border border-[#1D2433] bg-[#0F111A] px-3 py-2 text-slate-200 shadow-[0_18px_40px_rgba(15,17,26,0.45)] ${onCompactHeaderPointerDown ? 'cursor-move select-none' : ''} ${compactDragActive ? 'bg-[#111A2D]' : ''}`}
+          onPointerDown={onCompactHeaderPointerDown}
+          style={onCompactHeaderPointerDown ? MOBILE_DRAG_HANDLE_STYLE : undefined}
+        >
+          <button
+            type="button"
+            onClick={toggleMic}
+            disabled={!joined || micLockedByQueue}
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+              joined && micEnabled
+                ? 'bg-[#182033] text-[#A5B4FC] hover:bg-[#22304C]'
+                : 'bg-[#2F1B27] text-[#FCA5A5] hover:bg-[#472535]'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+            aria-label={micEnabled ? copy.mute : copy.unmute}
+            title={micEnabled ? copy.mute : copy.unmute}
+          >
+            {joined && micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCompactMinimize}
+            className="rounded-lg bg-[#24324C] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#33425F]"
+            aria-label={copy.restore}
+            title={copy.restore}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="overflow-hidden rounded-2xl border border-[#1D2433] bg-[#0F111A] shadow-[0_18px_40px_rgba(15,17,26,0.45)]">
         <div
           className={`flex items-center justify-between gap-3 border-b border-[#1D2433] px-4 py-3 text-slate-200 ${onCompactHeaderPointerDown ? 'cursor-move select-none' : ''} ${compactDragActive ? 'bg-[#111A2D]' : ''}`}
           onPointerDown={onCompactHeaderPointerDown}
+          style={onCompactHeaderPointerDown ? MOBILE_DRAG_HANDLE_STYLE : undefined}
         >
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-white">{copy.title}</div>
             <div className="text-xs text-slate-400">{joined ? copy.connected : copy.joining}</div>
           </div>
-          {onExpand ? (
-            <button type="button" onClick={onExpand} className="rounded-lg bg-[#24324C] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#33425F]">
-              {copy.openPanel}
-            </button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {onToggleCompactMinimize ? (
+              <button
+                type="button"
+                onClick={onToggleCompactMinimize}
+                className="rounded-lg bg-[#24324C] px-2.5 py-2 text-xs font-semibold text-white transition hover:bg-[#33425F]"
+                aria-label={copy.minimize}
+                title={copy.minimize}
+              >
+                <Minimize2 className="h-4 w-4" />
+              </button>
+            ) : null}
+            {onExpand ? (
+              <button type="button" onClick={onExpand} className="rounded-lg bg-[#24324C] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#33425F]">
+                {copy.openPanel}
+              </button>
+            ) : null}
+          </div>
         </div>
         {joined && voiceMode === 'QUEUE' ? (
           <div className="border-b border-[#1D2433] px-4 py-2 text-xs text-slate-300">
@@ -514,7 +580,10 @@ export function RemoteVoiceCallPanel({
         )}
       </div>
 
-      <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${joined ? 'pb-28 sm:pb-24' : ''}`}>
+      <div
+        className={`min-h-0 flex-1 overflow-y-auto p-4 ${joined ? 'pb-28 sm:pb-24' : ''}`}
+        style={MOBILE_SCROLL_AREA_STYLE}
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => {
             const initials = (card.label || '?').trim().slice(0, 2).toUpperCase();

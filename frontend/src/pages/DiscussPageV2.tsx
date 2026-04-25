@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Clapperboard,
@@ -78,6 +78,12 @@ const downloadBlob = (blob: Blob, filename: string) => {
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
+};
+
+const MOBILE_SCROLL_AREA_STYLE: CSSProperties = {
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain',
+  touchAction: 'pan-y',
 };
 
 export default function DiscussPageV2() {
@@ -207,6 +213,7 @@ export default function DiscussPageV2() {
   const [chatDraft, setChatDraft] = useState('');
   const [voiceCallState, setVoiceCallState] = useState({ joined: false, joining: false });
   const [voiceFloatPosition, setVoiceFloatPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isVoiceFloatMinimized, setIsVoiceFloatMinimized] = useState(false);
   const [isDraggingVoiceFloat, setIsDraggingVoiceFloat] = useState(false);
   const floatingVoiceHostRef = useRef<HTMLDivElement | null>(null);
   const floatingVoicePanelRef = useRef<HTMLDivElement | null>(null);
@@ -417,6 +424,8 @@ export default function DiscussPageV2() {
 
   useEffect(() => {
     if (!isFloatingVoiceVisible) {
+      setIsVoiceFloatMinimized(false);
+      setVoiceFloatPosition(null);
       setIsDraggingVoiceFloat(false);
       voiceFloatDragRef.current = null;
     }
@@ -433,6 +442,9 @@ export default function DiscussPageV2() {
       if (!hostRect || !drag) {
         return;
       }
+      if (event.pointerType === 'touch') {
+        event.preventDefault();
+      }
       const nextX = event.clientX - hostRect.left - drag.offsetX;
       const nextY = event.clientY - hostRect.top - drag.offsetY;
       setVoiceFloatPosition(clampVoiceFloatPosition(nextX, nextY));
@@ -443,7 +455,7 @@ export default function DiscussPageV2() {
       voiceFloatDragRef.current = null;
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
     window.addEventListener('pointerup', stopDragging);
     window.addEventListener('pointercancel', stopDragging);
 
@@ -488,6 +500,7 @@ export default function DiscussPageV2() {
     };
     setVoiceFloatPosition(clampVoiceFloatPosition(baseX, baseY));
     setIsDraggingVoiceFloat(true);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     event.preventDefault();
   };
 
@@ -498,7 +511,7 @@ export default function DiscussPageV2() {
         <h3 className="text-lg font-semibold text-white">{copy.roomChat}</h3>
         <span className="text-xs text-slate-400">{copy.roomCode} {code}</span>
       </div>
-      <div className="chat-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      <div className="chat-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4" style={MOBILE_SCROLL_AREA_STYLE}>
         {displayedMessages.map((msg) => (
           <div key={msg.id} className={msg.msgType === 'ai_notify' ? 'rounded-xl bg-indigo-500/20 px-3 py-2 text-xs text-indigo-100' : 'rounded-xl bg-[#111A2D] px-3 py-2'}>
             {msg.msgType === 'ai_notify' ? (
@@ -623,7 +636,7 @@ export default function DiscussPageV2() {
           <div ref={floatingVoiceHostRef} className="relative min-h-0 flex-1 overflow-hidden">
             <div
               ref={floatingVoicePanelRef}
-              className={workspaceTab === 'voice' ? 'h-full min-h-0 p-3 md:p-4' : isFloatingVoiceVisible ? `pointer-events-none absolute z-20 w-[320px] max-w-[calc(100%-2rem)] ${voiceFloatPosition ? '' : 'bottom-4 right-4'}` : 'hidden'}
+              className={workspaceTab === 'voice' ? 'h-full min-h-0 p-3 md:p-4' : isFloatingVoiceVisible ? `pointer-events-none absolute z-20 ${isVoiceFloatMinimized ? 'w-auto' : 'w-[320px] max-w-[calc(100%-2rem)]'} ${voiceFloatPosition ? '' : 'bottom-4 right-4'}` : 'hidden'}
               style={workspaceTab === 'voice' || !voiceFloatPosition ? undefined : { left: `${voiceFloatPosition.x}px`, top: `${voiceFloatPosition.y}px` }}
             >
               <div className={workspaceTab === 'voice' ? 'h-full min-h-0' : 'pointer-events-auto'}>
@@ -635,9 +648,14 @@ export default function DiscussPageV2() {
                   currentUserId={user?.id}
                   compact={workspaceTab !== 'voice'}
                   onCallStateChange={setVoiceCallState}
-                  onExpand={() => setActiveTab('voice')}
+                  onExpand={() => {
+                    setIsVoiceFloatMinimized(false);
+                    setActiveTab('voice');
+                  }}
+                  onToggleCompactMinimize={() => setIsVoiceFloatMinimized((current) => !current)}
                   onCompactHeaderPointerDown={handleVoiceFloatPointerDown}
                   compactDragActive={isDraggingVoiceFloat}
+                  compactMinimized={isVoiceFloatMinimized}
                 />
               </div>
             </div>

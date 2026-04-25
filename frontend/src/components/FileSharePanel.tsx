@@ -1,4 +1,4 @@
-﻿import React, { ChangeEvent, useMemo, useState } from 'react';
+import React, { ChangeEvent, useMemo, useState } from 'react';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { SharedFile, SharedFileTree, SharedFolder } from '../types/shared-file';
 
@@ -29,6 +29,12 @@ const formatFileSize = (sizeBytes: number) => {
 };
 
 const formatTime = (value: string) => new Date(value).toLocaleString();
+
+const MOBILE_SCROLL_AREA_STYLE: React.CSSProperties = {
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain',
+  touchAction: 'pan-y',
+};
 
 const buildBreadcrumbs = (folders: SharedFolder[], folderId: string | null) => {
   const items: SharedFolder[] = [];
@@ -205,7 +211,7 @@ export const FileSharePanel = ({
       {error ? <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div> : null}
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">{copy.notice}</div>
 
-      <div className="h-[calc(100%-14rem)] overflow-y-auto rounded-2xl border border-slate-200">
+      <div className="h-[calc(100%-14rem)] overflow-y-auto rounded-2xl border border-slate-200" style={MOBILE_SCROLL_AREA_STYLE}>
         {loading ? (
           <div className="p-6 text-sm text-slate-500">{copy.loading}</div>
         ) : currentFolders.length === 0 && currentFiles.length === 0 ? (

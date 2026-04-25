@@ -22,6 +22,12 @@ const highlightColors = ['#fef08a', '#bfdbfe', '#fecaca', '#bbf7d0', '#e9d5ff', 
 const stripHtml = (value: string) => value.replace(/<[^>]+>/g, '').replace(/&nbsp;/gi, ' ').trim();
 const hasMeaningfulContent = (value: string) => stripHtml(value).length > 0;
 
+const MOBILE_SCROLL_AREA_STYLE: React.CSSProperties = {
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain',
+  touchAction: 'pan-y',
+};
+
 const TextWhiteboard = ({ roomId, board, onBoardChange, exportTitle }: TextWhiteboardProps) => {
   const { language } = useLanguageStore();
   const copy = useMemo(
@@ -477,7 +483,7 @@ const TextWhiteboard = ({ roomId, board, onBoardChange, exportTitle }: TextWhite
             {saving ? copy.autosaving : copy.autosaveOn}
           </div>
         ) : null}
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto" style={MOBILE_SCROLL_AREA_STYLE}>
           <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-3 py-3 backdrop-blur">
             <div className="flex flex-wrap items-center gap-2">
               <button

@@ -31,6 +31,12 @@ type ChatBubble = AiConversationMessage & {
   pending?: boolean;
 };
 
+const MOBILE_SCROLL_AREA_STYLE: React.CSSProperties = {
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain',
+  touchAction: 'pan-y',
+};
+
 const formatFileSize = (sizeBytes: number) => {
   if (sizeBytes < 1024) {
     return `${sizeBytes} B`;
@@ -260,7 +266,7 @@ export const AiQaPanel = ({ onAsk, fileTree }: AiQaPanelProps) => {
           {availableFiles.length === 0 ? (
             <div className="text-sm text-slate-400">{'\u8fd9\u4e2a\u623f\u95f4\u8fd8\u6ca1\u6709\u5171\u4eab\u6587\u4ef6'}</div>
           ) : (
-            <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-44 space-y-2 overflow-y-auto pr-1" style={MOBILE_SCROLL_AREA_STYLE}>
               {availableFiles.map((file) => {
                 const selected = selectedFileIds.includes(file.id);
                 return (
@@ -303,6 +309,7 @@ export const AiQaPanel = ({ onAsk, fileTree }: AiQaPanelProps) => {
       <div
         ref={viewportRef}
         className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-5"
+        style={MOBILE_SCROLL_AREA_STYLE}
       >
         {messages.length === 0 ? (
           <div className="text-sm text-slate-400">
@@ -345,7 +352,7 @@ export const AiQaPanel = ({ onAsk, fileTree }: AiQaPanelProps) => {
             <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               {'\u672c\u6b21\u63d0\u95ee\u5f15\u7528'}
             </div>
-            <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto">
+            <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto" style={MOBILE_SCROLL_AREA_STYLE}>
               {selectedFiles.map((file) => (
                 <button
                   key={file.id}
