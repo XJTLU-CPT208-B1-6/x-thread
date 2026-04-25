@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Hand, Mic, MicOff, MonitorUp, MoreHorizontal, Phone, PhoneOff, Video, VideoOff } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type PointerEventHandler } from 'react';
+import { Hand, Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
 import { socketService } from '../services/socket-service';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import type { RoomMember } from '../types/room';
@@ -39,12 +39,22 @@ export function RemoteVoiceCallPanel({
   isOwner = false,
   roomMembers = [],
   currentUserId,
+  compact = false,
+  onCallStateChange,
+  onExpand,
+  onCompactHeaderPointerDown,
+  compactDragActive = false,
 }: {
   roomId?: string;
   enabled: boolean;
   isOwner?: boolean;
   roomMembers?: RoomMember[];
   currentUserId?: string;
+  compact?: boolean;
+  onCallStateChange?: (state: { joined: boolean; joining: boolean }) => void;
+  onExpand?: () => void;
+  onCompactHeaderPointerDown?: PointerEventHandler<HTMLDivElement>;
+  compactDragActive?: boolean;
 }) {
   const { language } = useLanguageStore();
   const copy = useMemo(
@@ -75,12 +85,9 @@ export function RemoteVoiceCallPanel({
             offline: 'offline',
             mute: 'Mute',
             unmute: 'Unmute',
-            cameraOn: 'Video On',
-            cameraOff: 'Video Off',
-            share: 'Share',
             raised: 'Raised',
             raise: 'Raise',
-            more: 'More',
+            openPanel: 'Open',
             unsupported: 'This browser does not support real-time voice calling.',
             denied: 'Unable to access microphone.',
             disabled: 'Voice call is available only in remote mode.',
@@ -110,12 +117,9 @@ export function RemoteVoiceCallPanel({
             offline: '离线',
             mute: '静音',
             unmute: '开麦',
-            cameraOn: '视频开',
-            cameraOff: '视频关',
-            share: '共享',
             raised: '已举手',
             raise: '举手',
-            more: '更多',
+            openPanel: '打开',
             unsupported: '当前浏览器不支持实时语音通话。',
             denied: '无法访问麦克风。',
             disabled: '语音通话只在远程模式下可用。',
@@ -127,6 +131,7 @@ export function RemoteVoiceCallPanel({
   const joinedRef = useRef(false);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const remoteAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const raiseHandTimeoutRef = useRef<number | null>(null);
   const [joined, setJoined] = useState(false);
   const [joining, setJoining] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -136,12 +141,15 @@ export function RemoteVoiceCallPanel({
   const [turnEndsAt, setTurnEndsAt] = useState<number | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [videoEnabled, setVideoEnabled] = useState(false);
   const [raisedHand, setRaisedHand] = useState(false);
 
   useEffect(() => {
     joinedRef.current = joined;
   }, [joined]);
+
+  useEffect(() => {
+    onCallStateChange?.({ joined, joining });
+  }, [joined, joining, onCallStateChange]);
 
   useEffect(() => {
     if (!enabled && joined) {
@@ -219,6 +227,9 @@ export function RemoteVoiceCallPanel({
 
   useEffect(() => {
     return () => {
+      if (raiseHandTimeoutRef.current !== null) {
+        window.clearTimeout(raiseHandTimeoutRef.current);
+      }
       void leaveCall();
     };
   }, []);
@@ -366,10 +377,15 @@ export function RemoteVoiceCallPanel({
   };
 
   const leaveCall = async () => {
+    if (raiseHandTimeoutRef.current !== null) {
+      window.clearTimeout(raiseHandTimeoutRef.current);
+      raiseHandTimeoutRef.current = null;
+    }
     if (roomId && joinedRef.current) {
       socketService.leaveVoiceCall(roomId);
     }
     setJoined(false);
+    setRaisedHand(false);
     setParticipants([]);
     setVoiceMode('OPEN');
     setCurrentSpeakerSocketId(null);
@@ -418,8 +434,67 @@ export function RemoteVoiceCallPanel({
     }
   };
 
+  const triggerRaiseHand = () => {
+    if (raiseHandTimeoutRef.current !== null) {
+      window.clearTimeout(raiseHandTimeoutRef.current);
+    }
+    setRaisedHand(true);
+    raiseHandTimeoutRef.current = window.setTimeout(() => {
+      setRaisedHand(false);
+      raiseHandTimeoutRef.current = null;
+    }, 5000);
+  };
+
+  const renderCallControls = () => (
+    <>
+      <button type="button" onClick={toggleMic} disabled={micLockedByQueue} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${micEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'} disabled:opacity-50`}>
+        {micEnabled ? <Mic className="mb-1 h-4 w-4" /> : <MicOff className="mb-1 h-4 w-4" />}
+        {micEnabled ? copy.mute : copy.unmute}
+      </button>
+      <button type="button" onClick={triggerRaiseHand} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${raisedHand ? 'bg-[#6366F1] text-white' : 'bg-[#24324C] text-white'}`}>
+        <Hand className="mb-1 h-4 w-4" />
+        {raisedHand ? copy.raised : copy.raise}
+      </button>
+      <button type="button" onClick={() => void leaveCall()} className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#F43F5E] text-[10px] font-semibold text-white">
+        <PhoneOff className="mb-1 h-4 w-4" />
+        {copy.leave}
+      </button>
+    </>
+  );
+
   if (!enabled) {
     return <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-sm">{copy.disabled}</div>;
+  }
+
+  if (compact) {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-[#1D2433] bg-[#0F111A] shadow-[0_18px_40px_rgba(15,17,26,0.45)]">
+        <div
+          className={`flex items-center justify-between gap-3 border-b border-[#1D2433] px-4 py-3 text-slate-200 ${onCompactHeaderPointerDown ? 'cursor-move select-none' : ''} ${compactDragActive ? 'bg-[#111A2D]' : ''}`}
+          onPointerDown={onCompactHeaderPointerDown}
+        >
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-white">{copy.title}</div>
+            <div className="text-xs text-slate-400">{joined ? copy.connected : copy.joining}</div>
+          </div>
+          {onExpand ? (
+            <button type="button" onClick={onExpand} className="rounded-lg bg-[#24324C] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#33425F]">
+              {copy.openPanel}
+            </button>
+          ) : null}
+        </div>
+        {joined && voiceMode === 'QUEUE' ? (
+          <div className="border-b border-[#1D2433] px-4 py-2 text-xs text-slate-300">
+            <div>{copy.currentSpeaker}: {activeSpeaker?.nickname ?? '--'}</div>
+            <div>{isCurrentSpeaker ? copy.yourTurn : copy.waitingTurn}</div>
+          </div>
+        ) : null}
+        {error ? <div className="mx-4 mt-3 rounded-xl border border-rose-400/50 bg-rose-500/20 px-3 py-2 text-xs text-rose-200">{error}</div> : null}
+        <div className="flex flex-wrap items-center justify-center gap-2 p-3">
+          {renderCallControls()}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -444,11 +519,13 @@ export function RemoteVoiceCallPanel({
           {cards.map((card) => {
             const initials = (card.label || '?').trim().slice(0, 2).toUpperCase();
             const isSpeaker = card.socketId && card.socketId === currentSpeakerSocketId;
+            const isRaised = card.isSelf && raisedHand;
             return (
               <div key={card.id} className={`rounded-2xl border p-4 transition ${isSpeaker ? 'border-[#6366F1] bg-[linear-gradient(145deg,#1B2440_0%,#1D2442_100%)]' : 'border-[#232B3D] bg-[linear-gradient(145deg,#182030_0%,#111827_100%)]'}`}>
-                <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#6366F1] text-sm font-bold text-white">{initials}</div>
+                <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white transition ${isRaised ? 'bg-amber-500 shadow-[0_0_0_4px_rgba(245,158,11,0.22)]' : 'bg-[#6366F1]'}`}>{initials}</div>
                 <div className="text-sm font-semibold text-white">{card.label}{card.isSelf ? ' (你)' : ''}</div>
                 <div className={`mt-1 text-xs ${card.isOnline ? 'text-emerald-300' : 'text-slate-400'}`}>{card.isOnline ? copy.online : copy.offline}</div>
+                {isRaised ? <div className="mt-2 inline-flex rounded-full bg-amber-500/20 px-2 py-1 text-xs font-semibold text-amber-200">{copy.raised}</div> : null}
               </div>
             );
           })}
@@ -479,30 +556,7 @@ export function RemoteVoiceCallPanel({
       {joined ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
           <div className="pointer-events-auto flex max-w-[260px] flex-wrap items-center justify-center gap-2 rounded-2xl border border-[#283249] bg-[#182033]/90 p-2 backdrop-blur sm:max-w-none sm:flex-nowrap">
-            <button type="button" onClick={toggleMic} disabled={micLockedByQueue} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${micEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'} disabled:opacity-50`}>
-              {micEnabled ? <Mic className="mb-1 h-4 w-4" /> : <MicOff className="mb-1 h-4 w-4" />}
-              {micEnabled ? copy.mute : copy.unmute}
-            </button>
-            <button type="button" onClick={() => setVideoEnabled((current) => !current)} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold transition ${videoEnabled ? 'bg-[#24324C] text-white' : 'bg-[#33425F] text-slate-100'}`}>
-              {videoEnabled ? <Video className="mb-1 h-4 w-4" /> : <VideoOff className="mb-1 h-4 w-4" />}
-              {videoEnabled ? copy.cameraOn : copy.cameraOff}
-            </button>
-            <button type="button" className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#24324C] text-[10px] font-semibold text-white">
-              <MonitorUp className="mb-1 h-4 w-4" />
-              {copy.share}
-            </button>
-            <button type="button" onClick={() => setRaisedHand((current) => !current)} className={`flex h-12 w-12 flex-col items-center justify-center rounded-lg text-[10px] font-semibold ${raisedHand ? 'bg-[#6366F1] text-white' : 'bg-[#24324C] text-white'}`}>
-              <Hand className="mb-1 h-4 w-4" />
-              {raisedHand ? copy.raised : copy.raise}
-            </button>
-            <button type="button" className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#24324C] text-[10px] font-semibold text-white">
-              <MoreHorizontal className="mb-1 h-4 w-4" />
-              {copy.more}
-            </button>
-            <button type="button" onClick={() => void leaveCall()} className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-[#F43F5E] text-[10px] font-semibold text-white">
-              <PhoneOff className="mb-1 h-4 w-4" />
-              {copy.leave}
-            </button>
+            {renderCallControls()}
           </div>
         </div>
       ) : null}

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Clapperboard,
-  Gamepad2,
   Maximize2,
   MessageSquareText,
   Minimize2,
@@ -18,7 +17,7 @@ import { FileSharePanel } from '../components/FileSharePanel';
 import { MindMap } from '../components/MindMap';
 import { PersonalityBadge } from '../components/PersonalityBadge';
 import { RemoteVoiceCallPanel } from '../components/RemoteVoiceCallPanel';
-import { TextWhiteboard } from '../components/TextWhiteboard';
+import { TextWhiteboard }from '../components/TextWhiteboard.tsx';
 import { useSocket } from '../hooks/useSocket';
 import { mapMindMapEdges, mapMindMapNodes } from '../lib/mindmap';
 import {
@@ -119,7 +118,7 @@ export default function DiscussPageV2() {
             dissolveFailed: 'Failed to dissolve room',
             companionOnline: 'Room pets',
             mentionHint: 'Anyone can mention a pet directly with @name.',
-            voiceVideo: 'Voice / Video',
+            voiceVideo: 'Voice Chat',
             game: 'Icebreak Game',
             endDiscussion: 'End Discussion',
             aiSummary: 'AI Live Summary',
@@ -164,7 +163,7 @@ export default function DiscussPageV2() {
             dissolveFailed: '解散房间失败',
             companionOnline: '房间宠物',
             mentionHint: '成员可以直接通过 @名字 呼叫宠物。',
-            voiceVideo: '语音/视频',
+            voiceVideo: '语音聊天',
             game: '破冰游戏',
             endDiscussion: '结束讨论',
             aiSummary: 'AI 实时摘要',
@@ -185,14 +184,13 @@ export default function DiscussPageV2() {
   const tabs = useMemo(
     () => [
       { id: 'voice' as const, label: copy.voiceVideo, icon: Clapperboard },
+      { id: 'chat' as const, label: copy.roomChat, icon: MessageSquareText },
       { id: 'mindmap' as const, label: language === 'en' ? 'Mind Map' : '思维导图', icon: Workflow },
       { id: 'ai' as const, label: 'AI', icon: Sparkles },
       { id: 'whiteboard' as const, label: language === 'en' ? 'Whiteboard' : '文字白板', icon: ScrollText },
       { id: 'files' as const, label: language === 'en' ? 'Files' : '文件共享', icon: Files },
-      { id: 'chat' as const, label: copy.roomChat, icon: MessageSquareText },
-      { id: 'game' as const, label: copy.game, icon: Gamepad2 },
     ],
-    [copy.game, copy.roomChat, copy.voiceVideo, language],
+    [copy.roomChat, copy.voiceVideo, language],
   );
 
   const { currentRoom, setRoom, clearRoom } = useRoomStore();
@@ -207,6 +205,12 @@ export default function DiscussPageV2() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [roomActionBusy, setRoomActionBusy] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
+  const [voiceCallState, setVoiceCallState] = useState({ joined: false, joining: false });
+  const [voiceFloatPosition, setVoiceFloatPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingVoiceFloat, setIsDraggingVoiceFloat] = useState(false);
+  const floatingVoiceHostRef = useRef<HTMLDivElement | null>(null);
+  const floatingVoicePanelRef = useRef<HTMLDivElement | null>(null);
+  const voiceFloatDragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
 
   useSocket(currentRoom?.id);
 
@@ -389,12 +393,103 @@ export default function DiscussPageV2() {
   );
   const workspaceTab = isSplitView && activeTab === 'chat' ? 'voice' : activeTab;
   const stageHint = resolveStageHint(workspaceTab, copy);
+  const isFloatingVoiceVisible = workspaceTab !== 'voice' && remoteVoiceEnabled && (voiceCallState.joined || voiceCallState.joining);
+
+  const clampVoiceFloatPosition = (x: number, y: number) => {
+    const hostRect = floatingVoiceHostRef.current?.getBoundingClientRect();
+    const panelRect = floatingVoicePanelRef.current?.getBoundingClientRect();
+    if (!hostRect || !panelRect) {
+      return { x, y };
+    }
+    const maxX = Math.max(0, hostRect.width - panelRect.width);
+    const maxY = Math.max(0, hostRect.height - panelRect.height);
+    return {
+      x: Math.min(Math.max(0, x), maxX),
+      y: Math.min(Math.max(0, y), maxY),
+    };
+  };
 
   useEffect(() => {
     if (isSplitView && activeTab === 'chat') {
       setActiveTab('voice');
     }
   }, [activeTab, isSplitView]);
+
+  useEffect(() => {
+    if (!isFloatingVoiceVisible) {
+      setIsDraggingVoiceFloat(false);
+      voiceFloatDragRef.current = null;
+    }
+  }, [isFloatingVoiceVisible]);
+
+  useEffect(() => {
+    if (!isDraggingVoiceFloat) {
+      return;
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const hostRect = floatingVoiceHostRef.current?.getBoundingClientRect();
+      const drag = voiceFloatDragRef.current;
+      if (!hostRect || !drag) {
+        return;
+      }
+      const nextX = event.clientX - hostRect.left - drag.offsetX;
+      const nextY = event.clientY - hostRect.top - drag.offsetY;
+      setVoiceFloatPosition(clampVoiceFloatPosition(nextX, nextY));
+    };
+
+    const stopDragging = () => {
+      setIsDraggingVoiceFloat(false);
+      voiceFloatDragRef.current = null;
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+    };
+  }, [isDraggingVoiceFloat]);
+
+  useEffect(() => {
+    if (!voiceFloatPosition) {
+      return;
+    }
+
+    const handleResize = () => {
+      setVoiceFloatPosition((current) => (current ? clampVoiceFloatPosition(current.x, current.y) : current));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [voiceFloatPosition]);
+
+  const handleVoiceFloatPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isFloatingVoiceVisible) {
+      return;
+    }
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('button')) {
+      return;
+    }
+    const hostRect = floatingVoiceHostRef.current?.getBoundingClientRect();
+    const panelRect = floatingVoicePanelRef.current?.getBoundingClientRect();
+    if (!hostRect || !panelRect) {
+      return;
+    }
+    const baseX = voiceFloatPosition?.x ?? panelRect.left - hostRect.left;
+    const baseY = voiceFloatPosition?.y ?? panelRect.top - hostRect.top;
+    voiceFloatDragRef.current = {
+      offsetX: event.clientX - hostRect.left - baseX,
+      offsetY: event.clientY - hostRect.top - baseY,
+    };
+    setVoiceFloatPosition(clampVoiceFloatPosition(baseX, baseY));
+    setIsDraggingVoiceFloat(true);
+    event.preventDefault();
+  };
 
 
   const renderRemoteSidebar = () => (
@@ -445,25 +540,15 @@ export default function DiscussPageV2() {
   const renderTabPanel = () => {
     switch (workspaceTab) {
       case 'voice':
-        return (
-          <div className="h-full min-h-0 p-3 md:p-4">
-            <RemoteVoiceCallPanel
-              roomId={currentRoom?.id}
-              enabled={remoteVoiceEnabled}
-              isOwner={isOwner}
-              roomMembers={currentRoom?.members ?? []}
-              currentUserId={user?.id}
-            />
-          </div>
-        );
+        return null;
       case 'ai':
         return <div className="h-full min-h-0 p-4 md:p-6"><AiQaPanel onAsk={handleAskAi} fileTree={fileTree} /></div>;
       case 'whiteboard':
-        return <div className="h-full min-h-0 p-4 md:p-6">{currentRoom?.id ? <TextWhiteboard roomId={currentRoom.id} board={board} onBoardChange={setBoard} /> : null}</div>;
+        return <div className="h-full min-h-0 p-4 md:p-6">{currentRoom?.id ? <TextWhiteboard roomId={currentRoom.id} board={board} onBoardChange={setBoard} exportTitle={currentRoom.topic || code || currentRoom.id} /> : null}</div>;
       case 'files':
         return <div className="h-full min-h-0 p-4 md:p-6"><FileSharePanel fileTree={fileTree} loading={filesLoading} onRefresh={() => currentRoom?.id ? loadSharedFiles(currentRoom.id) : Promise.resolve()} onUpload={handleUploadFile} onCreateFolder={handleCreateFolder} onRenameFolder={handleRenameFolder} onDownload={handleDownloadFile} onBatchDownload={handleBatchDownload} /></div>;
       case 'chat':
-        return <div className="h-full min-h-0 p-4 md:p-6">{renderRemoteSidebar()}</div>;
+        return <div className="h-full min-h-0 overflow-hidden p-4 md:p-6">{renderRemoteSidebar()}</div>;
       case 'game':
         return (
           <div className="h-full min-h-0 p-4 md:p-6">
@@ -483,7 +568,7 @@ export default function DiscussPageV2() {
   };
 
   return (
-    <div ref={pageRef} className="flex min-h-[100dvh] flex-col bg-[#F8FAFF]">
+    <div ref={pageRef} className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-[#F8FAFF]">
       <header className="border-b border-[#E8ECFF] bg-white px-4 py-3 md:px-6">
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6366F1]">{copy.discussionRoom}</div>
         <h1 className="text-[36px] font-bold leading-none text-[#0B1454]">{currentRoom?.topic || copy.unsetTopic}</h1>
@@ -535,8 +620,30 @@ export default function DiscussPageV2() {
       <div className={`flex min-h-0 flex-1 flex-col px-4 pb-4 md:px-6 md:pb-6 ${isSplitView ? 'gap-4 lg:flex-row' : ''}`}>
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-[#E6EAFF] bg-white">
           <div className="border-b border-[#EEF1FF] px-4 py-2 text-xs font-semibold text-[#6366F1]">{stageHint}</div>
-          <div className="min-h-0 flex-1">
-            {renderTabPanel()}
+          <div ref={floatingVoiceHostRef} className="relative min-h-0 flex-1 overflow-hidden">
+            <div
+              ref={floatingVoicePanelRef}
+              className={workspaceTab === 'voice' ? 'h-full min-h-0 p-3 md:p-4' : isFloatingVoiceVisible ? `pointer-events-none absolute z-20 w-[320px] max-w-[calc(100%-2rem)] ${voiceFloatPosition ? '' : 'bottom-4 right-4'}` : 'hidden'}
+              style={workspaceTab === 'voice' || !voiceFloatPosition ? undefined : { left: `${voiceFloatPosition.x}px`, top: `${voiceFloatPosition.y}px` }}
+            >
+              <div className={workspaceTab === 'voice' ? 'h-full min-h-0' : 'pointer-events-auto'}>
+                <RemoteVoiceCallPanel
+                  roomId={currentRoom?.id}
+                  enabled={remoteVoiceEnabled}
+                  isOwner={isOwner}
+                  roomMembers={currentRoom?.members ?? []}
+                  currentUserId={user?.id}
+                  compact={workspaceTab !== 'voice'}
+                  onCallStateChange={setVoiceCallState}
+                  onExpand={() => setActiveTab('voice')}
+                  onCompactHeaderPointerDown={handleVoiceFloatPointerDown}
+                  compactDragActive={isDraggingVoiceFloat}
+                />
+              </div>
+            </div>
+            <div className={workspaceTab === 'voice' ? 'hidden' : 'h-full min-h-0'}>
+              {renderTabPanel()}
+            </div>
           </div>
         </main>
         {isSplitView ? (

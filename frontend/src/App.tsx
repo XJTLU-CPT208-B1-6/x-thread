@@ -5,11 +5,11 @@ import { saveAiSettings } from './lib/ai-settings';
 import HomeWorkspacePage from './pages/HomeWorkspacePage';
 import GroupLobbyPage from './pages/GroupLobbyPage';
 import AdminPage from './pages/AdminPage';
-import LobbyPageV2 from './pages/LobbyPageV2Active';
+import LobbyPage from './pages/LobbyPage';
 import IceBreakPage from './pages/IceBreakPage';
-import DiscussPageV2 from './pages/DiscussPageV2';
+import DiscussPage from './pages/DiscussPage';
 import ReviewPage from './pages/ReviewPage';
-import AccountAiSettingsPageV2 from './pages/AccountAiSettingsPageV2';
+import AccountAiSettingsPage from './pages/AccountAiSettingsPage';
 import RoomHistoryPage from './pages/RoomHistoryPage';
 import { accountService, authService } from './services/api-client';
 
@@ -73,12 +73,12 @@ export default function App() {
       <Route path="/" element={<HomeWorkspacePage />} />
       <Route path="/lobby" element={<GroupLobbyPage />} />
       <Route path="/admin" element={<AdminPage />} />
-      <Route path="/room/:code/lobby" element={<LobbyPageV2 />} />
+      <Route path="/room/:code/lobby" element={<LobbyPage />} />
       <Route path="/room/:code/icebreak" element={<IceBreakPage />} />
-      <Route path="/room/:code/discuss" element={<DiscussPageV2 />} />
+      <Route path="/room/:code/discuss" element={<DiscussPage />} />
       <Route path="/room/:code/history" element={<RoomHistoryPage />} />
-      <Route path="/settings/ai" element={<AccountAiSettingsPageV2 />} />
-      <Route path="/room/:code/ai-settings" element={<AccountAiSettingsPageV2 />} />
+      <Route path="/settings/ai" element={<AccountAiSettingsPage />} />
+      <Route path="/room/:code/ai-settings" element={<AccountAiSettingsPage />} />
       <Route path="/room/:code/review" element={<ReviewPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
